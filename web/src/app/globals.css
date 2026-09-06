@@ -51,3 +51,60 @@ body {
     transition: transform 900ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
+
+/*
+ * Leaflet belgilariga uslub. Ular xarita ichiga HTML sifatida joylashtiriladi
+ * (L.divIcon), shuning uchun Tailwind sinflari emas, oddiy CSS ishlatiladi.
+ */
+.bus-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 20px;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+}
+
+.bus-pin__meet {
+  position: absolute;
+  top: -14px;
+  font-size: 11px;
+}
+
+.user-pin {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 3px rgb(16 185 129 / 0.3);
+}
+
+/* Xarita ostidagi fon ilova mavzusiga mos bo'lsin */
+.leaflet-container {
+  background: var(--color-surface-alt);
+  font: inherit;
+}
+
+/* OSM atributi majburiy, lekin u ko'zga urilmasligi kerak */
+.leaflet-control-attribution {
+  font-size: 9px;
+}
+
+/*
+ * OSM tile'lari doim yorug'. Qorong'i mavzuda ular atrofdagi interfeysga
+ * nisbatan ko'zni qamashtiradi, shuning uchun biroz xiralashtiriladi.
+ *
+ * To'liq inversiya (invert + hue-rotate) ataylab ishlatilmadi: u suv va
+ * yashil hududlarni tabiiy bo'lmagan rangga bo'yaydi, yozuvlarni esa
+ * o'qishni qiyinlashtiradi.
+ */
+@media (prefers-color-scheme: dark) {
+  .leaflet-tile {
+    filter: brightness(0.82) saturate(0.85) contrast(1.05);
+  }
+}

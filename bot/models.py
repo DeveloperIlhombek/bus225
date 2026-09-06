@@ -60,6 +60,52 @@ class Stop:
 
 
 @dataclass(frozen=True, slots=True)
+class RouteGeometry:
+    """Yo'lning haqiqiy geometriyasi.
+
+    `legs[i]` — `stops[i]` dan `stops[i+1]` gacha bo'lgan yo'l nuqtalari,
+    ya'ni uzunligi doimo `stop_count - 1` ga teng. Geometriya bir marta
+    hisoblanib faylga yoziladi — ilova ishlayotganda routing API kerak emas.
+
+    Bot bu ma'lumotni ishlatmaydi, lekin uni TEKSHIRADI: fayl yagona manba
+    bo'lgani uchun buzuq geometriya Mini App'ga yetib bormasligi kerak.
+    """
+
+    legs: tuple[tuple[tuple[float, float], ...], ...]
+
+    @classmethod
+    def from_dict(cls, raw: Any, stop_count: int) -> "RouteGeometry":
+        raw_legs = raw.get("legs") if isinstance(raw, dict) else None
+        if not isinstance(raw_legs, list):
+            raise RouteDataError("'geometry.legs' ro'yxat bo'lishi kerak.")
+
+        expected = stop_count - 1
+        if len(raw_legs) != expected:
+            raise RouteDataError(
+                f"'geometry.legs' da {len(raw_legs)} ta oraliq bor, "
+                f"lekin {stop_count} ta bekat uchun {expected} ta kerak."
+            )
+
+        legs: list[tuple[tuple[float, float], ...]] = []
+        for index, raw_leg in enumerate(raw_legs):
+            if not isinstance(raw_leg, list):
+                raise RouteDataError(f"'geometry.legs[{index}]' ro'yxat bo'lishi kerak.")
+            points: list[tuple[float, float]] = []
+            for point in raw_leg:
+                try:
+                    lat, lng = (float(value) for value in point)
+                except (TypeError, ValueError) as exc:
+                    raise RouteDataError(
+                        f"'geometry.legs[{index}]' ichida noto'g'ri nuqta: {point!r} "
+                        "([lat, lng] kutilgan)"
+                    ) from exc
+                points.append((lat, lng))
+            legs.append(tuple(points))
+
+        return cls(legs=tuple(legs))
+
+
+@dataclass(frozen=True, slots=True)
 class Trip:
     """Bitta avtobusning bitta reysi."""
 
@@ -115,6 +161,7 @@ class Route:
     telegram_group: str | None
     stops: tuple[Stop, ...]
     trips: tuple[Trip, ...]
+    geometry: RouteGeometry | None = None
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "Route":
@@ -134,12 +181,20 @@ class Route:
                 raise RouteDataError(f"bus_id takrorlangan: {trip.bus_id}")
             seen.add(trip.bus_id)
 
+        raw_geometry = raw.get("geometry")
+        geometry = (
+            RouteGeometry.from_dict(raw_geometry, len(stops))
+            if raw_geometry is not None
+            else None
+        )
+
         return cls(
             route_id=str(raw.get("route_id", "")),
             route_name=str(raw.get("route_name", "Avtobus yo'nalishi")),
             telegram_group=raw.get("telegram_group"),
             stops=stops,
             trips=trips,
+            geometry=geometry,
         )
 
     @property

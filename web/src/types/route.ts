@@ -21,12 +21,30 @@ export interface Trip {
   readonly times: readonly OptionalTime[];
 }
 
+/** [kenglik, uzunlik] — GeoJSON'dan farqli o'laroq lat birinchi (Leaflet tartibi). */
+export type LatLngTuple = readonly [lat: number, lng: number];
+
+/**
+ * Yo'lning haqiqiy geometriyasi.
+ *
+ * `legs[i]` — `stops[i]` dan `stops[i+1]` gacha bo'lgan yo'l nuqtalari,
+ * ya'ni uzunligi doimo `stops.length - 1` ga teng. Geometriya bir marta
+ * hisoblanib faylga yoziladi, shuning uchun ilova ishlayotganda hech qanday
+ * routing API yoki kalit kerak emas.
+ *
+ * Maydon ixtiyoriy: bo'lmasa bekatlar to'g'ri chiziq bilan bog'lanadi.
+ */
+export interface RouteGeometry {
+  readonly legs: readonly (readonly LatLngTuple[])[];
+}
+
 export interface Route {
   readonly route_id: string;
   readonly route_name: string;
   readonly telegram_group?: string;
   readonly stops: readonly Stop[];
   readonly trips: readonly Trip[];
+  readonly geometry?: RouteGeometry;
 }
 
 /** Ayni damda yo'lda bo'lgan avtobus. */

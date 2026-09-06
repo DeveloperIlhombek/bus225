@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { BusList } from "@/components/BusList";
 import { DepartureBoard } from "@/components/DepartureBoard";
-import { RouteMap } from "@/components/RouteMap";
+import { MapPanel } from "@/components/MapPanel";
 import { Skeleton } from "@/components/Skeleton";
 import { StatusBar } from "@/components/StatusBar";
 import { StopPicker } from "@/components/StopPicker";
@@ -74,15 +74,14 @@ export function LiveRouteScreen() {
             />
           </header>
 
-          <div className="rounded-2xl bg-[var(--color-surface-alt)] p-2">
-            <RouteMap
-              route={route}
-              buses={buses}
-              nearestStopIndex={nearest?.index ?? null}
-              selectedStopIndex={selectedIndex}
-              onSelectStop={setPickedIndex}
-            />
-          </div>
+          <MapPanel
+            route={route}
+            buses={buses}
+            userLocation={location}
+            nearestStopIndex={nearest?.index ?? null}
+            selectedStopIndex={selectedIndex}
+            onSelectStop={setPickedIndex}
+          />
 
           <StopPicker
             route={route}

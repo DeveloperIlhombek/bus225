@@ -77,3 +77,42 @@ class TestRealRouteFile:
         for trip in real_route.trips:
             expected = Direction.TO_CITY if trip.bus_id.startswith("A") else Direction.TO_VILLAGE
             assert trip.direction is expected, trip.bus_id
+
+
+class TestRouteGeometry:
+    @staticmethod
+    def _raw(geometry: object) -> dict:
+        return {
+            "stops": [
+                {"name": "a", "lat": 1, "lng": 1},
+                {"name": "b", "lat": 2, "lng": 2},
+                {"name": "c", "lat": 3, "lng": 3},
+            ],
+            "trips": [{"bus_id": "A1", "times": ["06:00", "06:30", "07:00"]}],
+            "geometry": geometry,
+        }
+
+    def test_absent_geometry_is_allowed(self) -> None:
+        raw = self._raw(None)
+        del raw["geometry"]
+        assert Route.from_dict(raw).geometry is None
+
+    def test_valid_geometry_is_parsed(self) -> None:
+        route = Route.from_dict(
+            self._raw({"legs": [[[1, 1], [1.5, 1.5], [2, 2]], [[2, 2], [3, 3]]]})
+        )
+        assert route.geometry is not None
+        assert len(route.geometry.legs) == 2
+        assert route.geometry.legs[0][1] == (1.5, 1.5)
+
+    def test_leg_count_must_match_stops(self) -> None:
+        with pytest.raises(RouteDataError, match="oraliq bor"):
+            Route.from_dict(self._raw({"legs": [[[1, 1], [2, 2]]]}))
+
+    def test_legs_must_be_a_list(self) -> None:
+        with pytest.raises(RouteDataError, match="ro'yxat bo'lishi kerak"):
+            Route.from_dict(self._raw({"legs": "yo'l"}))
+
+    def test_malformed_point_is_rejected(self) -> None:
+        with pytest.raises(RouteDataError, match="noto'g'ri nuqta"):
+            Route.from_dict(self._raw({"legs": [[[1, 1], ["x", 2]], [[2, 2], [3, 3]]]}))

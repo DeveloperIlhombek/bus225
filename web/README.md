@@ -38,6 +38,30 @@ Muhim qoida: `lib/` ichida React ham, brauzer API'lari ham yo'q. Shu sabab
 u to'g'ridan-to'g'ri Node muhitida testlanadi va Python tomondagi
 `bot/services/schedule.py` bilan bir xil algoritmni takrorlaydi.
 
+## Xarita
+
+Ikki ko'rinish bor, foydalanuvchi 🗺/📊 tugmasi bilan almashtiradi va tanlovi
+`localStorage` da saqlanadi:
+
+- **Sxematik** (`RouteMap.tsx`) — gorizontal chiziq, SVG. Yengil, tashqi
+  so'rovsiz darhol chiziladi. Gidratsiyagacha ham shu ko'rsatiladi.
+- **Haqiqiy xarita** (`LeafletRouteMap.tsx`) — Leaflet + OpenStreetMap.
+
+**Nega OpenStreetMap:** kalit ham, hisob ham, karta ham talab qilmaydi —
+Google, Mapbox va boshqalardan farqli o'laroq haqiqatan tekin. Tile manzili
+`LeafletRouteMap.tsx` ning boshida bitta konstantada; trafik ortsa boshqa
+provayderga almashtirish bir qatorlik o'zgarish. Atribut ko'rsatish OSM
+shartlariga ko'ra majburiy.
+
+Leaflet DOM'ga bevosita murojaat qiladi, shuning uchun `MapPanel.tsx` uni
+`next/dynamic` bilan `ssr: false` rejimida yuklaydi — statik eksport buzilmaydi
+va foydalanuvchi sxemani tanlagan bo'lsa Leaflet umuman yuklanmaydi.
+
+Avtobusning xaritadagi joyi `lib/path.ts` orqali hisoblanadi: uzluksiz
+pozitsiya (0 .. bekatlar_soni−1) yo'l chizig'idagi nuqtaga aylantiriladi.
+Taqsimot masofa bo'yicha, nuqtalar soni bo'yicha emas — aks holda yo'l zich
+chizilgan burilishlarda avtobus sekinlashib qolardi.
+
 ## Deploy (statik)
 
 ```bash
