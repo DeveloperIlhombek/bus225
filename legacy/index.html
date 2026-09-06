@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>225 - Avtobus jadvali</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg: var(--tg-theme-bg-color, #0f1115);
+    --text: var(--tg-theme-text-color, #f2f2f2);
+    --hint: var(--tg-theme-hint-color, #8a8f98);
+    --accent: #2fbfa0;      /* teal - shaharga tomon */
+    --accent2: #d97a52;     /* terracotta - qishloqqa tomon */
+    --meet: #f2c94c;        /* uchrashish belgisi */
+    --card: var(--tg-theme-secondary-bg-color, #1a1d24);
+  }
+  * { box-sizing: border-box; }
+  body{
+    margin:0; padding:16px; background:var(--bg); color:var(--text);
+    font-family: -apple-system, "Inter", "Segoe UI", sans-serif;
+  }
+  h1{ font-size:18px; margin:0 0 4px; }
+  .sub{ color:var(--hint); font-size:13px; margin-bottom:16px; }
+
+  .card{ background:var(--card); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .label{ color:var(--hint); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .value{ font-size:20px; font-weight:600; }
+  .value.accent{ color:var(--accent); }
+  .value.accent2{ color:var(--accent2); }
+
+  #routeSvg{ width:100%; height:auto; display:block; margin:8px 0; }
+  .stop-name{ font-size:11px; fill:var(--hint); }
+  .stop-name.next{ fill:var(--accent); font-weight:700; }
+  .disclaimer{ font-size:11px; color:var(--hint); line-height:1.5; margin-top:8px; }
+  .btn{
+    display:block; width:100%; padding:12px; border-radius:10px; border:none;
+    background:var(--accent); color:#06251f; font-weight:600; font-size:14px; cursor:pointer;
+  }
+  .loc-error{ color:var(--accent2); font-size:13px; }
+
+  .legend{ display:flex; gap:16px; font-size:12px; color:var(--hint); margin-top:4px; }
+  .legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+
+  .bus-list{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+  .bus-row{ display:flex; justify-content:space-between; font-size:13px; padding:8px 10px; background:rgba(255,255,255,0.03); border-radius:8px; }
+  .bus-row .bid{ font-weight:700; }
+  .meet-banner{
+    background:rgba(242,201,76,0.12); border:1px solid var(--meet); color:var(--meet);
+    padding:8px 10px; border-radius:8px; font-size:13px; margin-top:8px; text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<h1>🚌 225-yo'nalish</h1>
+<div class="sub">Siyob bozori — G'o'bdin qishlog'i · bir nechta avtobus jonli holati</div>
+
+<div class="card">
+  <div class="label">Sizga eng yaqin bekat</div>
+  <div class="value accent" id="nearestStop">Aniqlanmoqda...</div>
+  <div class="sub" id="nearestDist"></div>
+</div>
+
+<div class="card">
+  <svg id="routeSvg" viewBox="0 0 340 130"></svg>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--accent)"></i> Shaharga tomon</span>
+    <span><i class="dot" style="background:var(--accent2)"></i> Qishloqqa tomon</span>
+  </div>
+  <div id="meetBanner"></div>
+  <div class="disclaimer">
+    ⚠️ Avtobuslar pozitsiyasi <b>jadval asosida taxminiy</b> ko'rsatilmoqda (real GPS signal emas).
+  </div>
+</div>
+
+<div class="card">
+  <div class="label">Hozir yo'lda</div>
+  <div class="bus-list" id="busList"></div>
+</div>
+
+<button class="btn" id="refreshBtn">🔄 Yangilash</button>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+let ROUTE = null;      // {stops, trips}
+let userLoc = null;    // {lat, lng}
+
+async function loadRoute(){
+  const res = await fetch("route.json");
+  ROUTE = await res.json();
+  render();
+}
+
+// ---- Haversine masofa (metrda) ----
+function distMeters(lat1, lng1, lat2, lng2){
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function requestLocation(){
+  if (tg?.LocationManager) {
+    tg.LocationManager.init(() => {
+      tg.LocationManager.getLocation((data) => {
+        if (data) { userLoc = {lat: data.latitude, lng: data.longitude}; render(); }
+        else fallbackGeolocation();
+      });
+    });
+  } else {
+    fallbackGeolocation();
+  }
+}
+function fallbackGeolocation(){
+  if (!navigator.geolocation) {
+    document.getElementById("nearestStop").innerHTML = '<span class="loc-error">Joylashuv aniqlanmadi</span>';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => { userLoc = {lat: pos.coords.latitude, lng: pos.coords.longitude}; render(); },
+    () => { document.getElementById("nearestStop").innerHTML = '<span class="loc-error">Joylashuvga ruxsat berilmadi</span>'; }
+  );
+}
+
+function timeToMinutes(t){ if (!t) return null; const [h,m] = t.split(":").map(Number); return h*60+m; }
+
+// ---- Har bir "trip" uchun hozirgi pozitsiyani hisoblash ----
+// Qaytadi: null (faol emas) yoki {pos, direction}
+// pos: 0..(stops.length-1) oralig'idagi UZLUKSIZ qiymat (kanonik bekat tartibi bo'yicha)
+// direction avtomatik: vaqt index bo'yicha o'ssa "shaharga", kamaysa "qishloqqa"
+function computeTripPosition(trip){
+  const now = new Date();
+  const nowMin = now.getHours()*60 + now.getMinutes();
+  const times = trip.times;
+
+  for (let i = 0; i < times.length - 1; i++){
+    const t1 = timeToMinutes(times[i]);
+    const t2 = timeToMinutes(times[i+1]);
+    if (t1 === null || t2 === null) continue;
+    const lo = Math.min(t1, t2), hi = Math.max(t1, t2);
+    if (nowMin >= lo && nowMin <= hi && t1 !== t2){
+      const pos = i + (nowMin - t1) / (t2 - t1); // universal formula: ikkala yo'nalish uchun ham to'g'ri
+      const direction = t2 > t1 ? "shaharga" : "qishloqqa";
+      return { pos, direction };
+    }
+  }
+  return null;
+}
+
+function getActiveBuses(){
+  const buses = [];
+  ROUTE.trips.forEach(trip => {
+    const p = computeTripPosition(trip);
+    if (p) buses.push({ id: trip.bus_id, ...p });
+  });
+  return buses;
+}
+
+function findNearestStop(){
+  if (!userLoc) return null;
+  const stops = ROUTE.stops;
+  let best = null, bestDist = Infinity;
+  stops.forEach((s, idx) => {
+    const d = distMeters(userLoc.lat, userLoc.lng, s.lat, s.lng);
+    if (d < bestDist){ bestDist = d; best = idx; }
+  });
+  return { idx: best, dist: bestDist };
+}
+
+// ---- SVG chizish: bir nechta avtobus + uchrashish belgisi ----
+function drawSvg(buses, nearestIdx){
+  const svg = document.getElementById("routeSvg");
+  const stops = ROUTE.stops;
+  const n = stops.length;
+  const padX = 20, w = 340 - padX*2;
+  const y = 65;
+  const xOf = pos => padX + (w * pos) / (n - 1);
+
+  let html = `<line x1="${xOf(0)}" y1="${y}" x2="${xOf(n-1)}" y2="${y}" stroke="#3a3f4a" stroke-width="4" stroke-linecap="round"/>`;
+
+  stops.forEach((s, i) => {
+    const isNearest = i === nearestIdx;
+    const cx = xOf(i);
+    html += `<circle cx="${cx}" cy="${y}" r="6" fill="${isNearest ? '#2fbfa0' : '#5a5f6a'}" opacity="${isNearest ? 1 : 0.4}"/>`;
+    const label = s.name.length > 11 ? s.name.slice(0,10)+"…" : s.name;
+    html += `<text x="${cx}" y="${y - 14}" text-anchor="middle" class="stop-name ${isNearest?'next':''}">${label}</text>`;
+  });
+
+  // Uchrashish tekshiruvi: pozitsiyalar farqi bo'yicha (o'qning ~4% chegarasida)
+  const MEET_THRESHOLD = (n - 1) * 0.06;
+  let meetX = null;
+  for (let i = 0; i < buses.length; i++){
+    for (let j = i+1; j < buses.length; j++){
+      if (buses[i].direction !== buses[j].direction &&
+          Math.abs(buses[i].pos - buses[j].pos) < MEET_THRESHOLD){
+        meetX = xOf((buses[i].pos + buses[j].pos) / 2);
+      }
+    }
+  }
+  if (meetX !== null){
+    html += `<text x="${meetX}" y="${y+28}" text-anchor="middle" font-size="16">🤝</text>`;
+  }
+
+  // Avtobuslarni chizish (bitta pozitsiyada bir nechtasi bo'lsa, biroz balandlikda siljitiladi)
+  const yOffsetByDir = { "shaharga": -22, "qishloqqa": 22 };
+  buses.forEach(b => {
+    const bx = xOf(b.pos);
+    const by = y + (yOffsetByDir[b.direction] || 0) * 0.5;
+    const color = b.direction === "shaharga" ? "var(--accent)" : "var(--accent2)";
+    html += `
+      <g transform="translate(${bx}, ${by})">
+        <circle r="10" fill="${color}"/>
+        <text x="0" y="4" text-anchor="middle" font-size="10" fill="#0f1115" font-weight="700">${b.id}</text>
+      </g>`;
+  });
+
+  svg.innerHTML = html;
+
+  document.getElementById("meetBanner").innerHTML = meetX !== null
+    ? `<div class="meet-banner">🤝 Ikki avtobus liniyaning shu qismida uchrashmoqda</div>`
+    : "";
+}
+
+function renderBusList(buses){
+  const el = document.getElementById("busList");
+  if (buses.length === 0){
+    el.innerHTML = `<div class="sub">Hozir yo'lda faol avtobus yo'q</div>`;
+    return;
+  }
+  el.innerHTML = buses.map(b => {
+    const dirLabel = b.direction === "shaharga" ? "Shaharga →" : "← Qishloqqa";
+    const color = b.direction === "shaharga" ? "var(--accent)" : "var(--accent2)";
+    return `<div class="bus-row">
+      <span class="bid" style="color:${color}">🚌 ${b.id}</span>
+      <span>${dirLabel}</span>
+    </div>`;
+  }).join("");
+}
+
+function render(){
+  if (!ROUTE) return;
+  const buses = getActiveBuses();
+  const nearest = findNearestStop();
+
+  if (nearest){
+    document.getElementById("nearestStop").textContent = ROUTE.stops[nearest.idx].name;
+    document.getElementById("nearestDist").textContent =
+      nearest.dist < 1000 ? `${Math.round(nearest.dist)} m masofada` : `${(nearest.dist/1000).toFixed(1)} km masofada`;
+  }
+
+  drawSvg(buses, nearest?.idx);
+  renderBusList(buses);
+}
+
+document.getElementById("refreshBtn").addEventListener("click", requestLocation);
+
+loadRoute().then(requestLocation);
+setInterval(render, 30000); // har 30 sekundda barcha avtobuslar pozitsiyasini yangilash
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# Repozitoriyda barcha matn fayllari LF bilan saqlanadi.
+# Windows'da ishchi nusxa CRLF bo'lishi mumkin — bu farq commit'ga tushmaydi.
+* text=auto eol=lf
+
+# Ikkilik fayllar
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# Diff'da shovqin qilmasin
+package-lock.json -diff linguist-generated

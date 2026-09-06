@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Muhit
+.env
+.env.local
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Sinxronlanadigan nusxa — manba data/route.json
+web/public/route.json
+
+# Muharrir / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

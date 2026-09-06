@@ -1,0 +1,34 @@
+{
+  "route_id": "225",
+  "route_name": "225-sonli \"Siyob bozori - G'o'bdin qishlog'i\"",
+  "telegram_group": "@AVTOBUS_225",
+  "note": "Koordinatalar NAMUNA. Google Maps'dan haqiqiysini oling. 'stops' ro'yxati QISHLOQDAN SHAHARGA tartibda bitta joyda yoziladi — barcha reyslar shu tartibga mos vaqt beradi.",
+
+  "stops": [
+    {"name": "G'o'bdin qishlog'i", "lat": 39.7010, "lng": 66.8600},
+    {"name": "17-maktab bekati",   "lat": 39.6950, "lng": 66.8500},
+    {"name": "G'azira bekati",     "lat": 39.6880, "lng": 66.8400},
+    {"name": "Pushkin bekati",     "lat": 39.6800, "lng": 66.8300},
+    {"name": "Siyob bozori",       "lat": 39.6650, "lng": 66.9800}
+  ],
+
+  "_trip_format_izoh": "Har bir 'times' massivi YUQORIDAGI 'stops' tartibiga mos (5 ta qiymat, 5 ta bekat). Agar avtobus ba'zi bekatlarda to'xtamasa, o'sha joyga null qo'ying. Vaqt index bo'yicha OSHSA -> avtobus qishloqdan shaharga ketyapti; KAMAYSA -> shahardan qishloqqa ketyapti. Yo'nalishni qo'lda yozish shart emas, dastur o'zi aniqlaydi.",
+
+  "trips": [
+    { "bus_id": "A1", "times": ["06:00", "06:12", "06:25", "06:30", "07:10"] },
+    { "bus_id": "A2", "times": ["06:40", "06:52", "07:05", "07:10", "09:30"] },
+    { "bus_id": "A3", "times": ["08:35", "08:47", "09:00", "09:05", "11:00"] },
+    { "bus_id": "A4", "times": ["10:50", "11:02", "11:15", "11:20", "13:10"] },
+    { "bus_id": "A5", "times": ["12:35", "12:47", "13:00", "13:05", "14:30"] },
+    { "bus_id": "A6", "times": ["14:40", "14:52", "15:05", "15:10", "16:30"] },
+    { "bus_id": "A7", "times": ["16:00", "16:12", "16:25", "16:30", "17:40"] },
+
+    { "bus_id": "B1", "times": ["09:00", "08:40", "08:25", "08:20", "07:50"] },
+    { "bus_id": "B2", "times": ["11:00", "10:40", "10:25", "10:20", "09:50"] },
+    { "bus_id": "B3", "times": ["12:45", "12:25", "12:10", "12:05", "11:35"] },
+    { "bus_id": "B4", "times": ["14:50", "14:30", "14:15", "14:10", "13:40"] },
+    { "bus_id": "B5", "times": ["16:10", "15:50", "15:35", "15:30", "15:00"] },
+    { "bus_id": "B6", "times": ["18:10", "17:50", "17:35", "17:30", "17:00"] },
+    { "bus_id": "B7", "times": ["19:20", "19:00", "18:45", "18:40", "18:10"] }
+  ]
+}
