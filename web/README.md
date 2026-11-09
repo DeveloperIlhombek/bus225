@@ -1,75 +1,59 @@
-# Bus 225 — Mini App (Next.js 16.2)
+# Bus 225 — Mini App (Next.js 16)
 
-225-yo'nalish avtobuslarining jonli holati. Telegram Mini App sifatida ham,
-oddiy brauzerda ham ishlaydi.
+225-yo'nalish avtobuslarining jadval bo'yicha jonli xaritasi. Telegram Mini App
+sifatida ham, oddiy brauzerda ham ishlaydi.
 
 ## Ishga tushirish
 
 ```bash
 npm install
-npm run dev
+npm run dev          # http://localhost:3000/?t=07:30
 ```
 
-`predev` skripti `../data/route.json` ni `public/route.json` ga ko'chiradi —
-loyihada yagona ma'lumot manbai shu tufayli saqlanadi.
-
-## Buyruqlar
+`predev`/`prebuild` skripti `../data/route.json` ni `public/route.json` ga
+ko'chiradi — ma'lumot manbai bitta.
 
 | Buyruq | Vazifasi |
 |---|---|
-| `npm run dev` | Lokal server (http://localhost:3000) |
-| `npm run build` | Statik eksport → `out/` |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Vitest (sof mantiq testlari) |
+| `npm run dev` | Lokal server |
+| `npm run build` | Statik eksport → `out/` (GitHub Pages uchun `BASE_PATH=/bus225`) |
+| `npm run lint` / `npm run typecheck` | ESLint / TypeScript |
+| `npm test` | Vitest — `lib/` dagi sof mantiq |
 
 ## Struktura
 
 ```
 src/
-├── app/          Next.js App Router — layout, sahifa, xato ekranlari
-├── components/   Ko'rinish qatlami (holatsiz, prop qabul qiladi)
-├── hooks/        React holati: route, vaqt, geolokatsiya, Telegram
-├── lib/          Sof mantiq — React'siz, to'liq testlangan
-└── types/        route.json tiplari
+├── app/                      layout, sahifa, xato ekranlari
+├── components/
+│   ├── TransitScreen.tsx     yagona ekran: holat, navigatsiya, sarlavha, tugmalar
+│   ├── TransitMap.tsx        Leaflet xarita: burilgan avtobuslar, silliq harakat
+│   ├── sheets.tsx            pastki panel: bosh sahifa, qidiruv, bekat, avtobus, jadval
+│   └── ui.tsx                kichik ko'rinish bloklari
+├── hooks/                    useRoute, useCityClock, useLocate, useTelegram
+├── lib/                      sof mantiq (React'siz, to'liq testlangan)
+│   ├── schedule.ts           reyslar: yo'nalish, pozitsiya, jo'nashlar
+│   ├── fleet.ts              avtobuslar: harakatda / bekatda kutmoqda / kun tugadi
+│   ├── path.ts               pozitsiya → xaritadagi nuqta va yo'nalish (azimut)
+│   ├── describe.ts           foydalanuvchi matnlari
+│   ├── time.ts, geo.ts       vaqt (Toshkent), masofa
+│   └── telegram.ts           Telegram SDK: to'liq ekran, Orqaga tugmasi, joylashuv
+└── types/route.ts            route.json tiplari
 ```
 
-Muhim qoida: `lib/` ichida React ham, brauzer API'lari ham yo'q. Shu sabab
-u to'g'ridan-to'g'ri Node muhitida testlanadi va Python tomondagi
-`bot/services/schedule.py` bilan bir xil algoritmni takrorlaydi.
+## Muhim qarorlar
 
-## Xarita
-
-Ikki ko'rinish bor, foydalanuvchi 🗺/📊 tugmasi bilan almashtiradi va tanlovi
-`localStorage` da saqlanadi:
-
-- **Sxematik** (`RouteMap.tsx`) — gorizontal chiziq, SVG. Yengil, tashqi
-  so'rovsiz darhol chiziladi. Gidratsiyagacha ham shu ko'rsatiladi.
-- **Haqiqiy xarita** (`LeafletRouteMap.tsx`) — Leaflet + OpenStreetMap.
-
-**Nega OpenStreetMap:** kalit ham, hisob ham, karta ham talab qilmaydi —
-Google, Mapbox va boshqalardan farqli o'laroq haqiqatan tekin. Tile manzili
-`LeafletRouteMap.tsx` ning boshida bitta konstantada; trafik ortsa boshqa
-provayderga almashtirish bir qatorlik o'zgarish. Atribut ko'rsatish OSM
-shartlariga ko'ra majburiy.
-
-Leaflet DOM'ga bevosita murojaat qiladi, shuning uchun `MapPanel.tsx` uni
-`next/dynamic` bilan `ssr: false` rejimida yuklaydi — statik eksport buzilmaydi
-va foydalanuvchi sxemani tanlagan bo'lsa Leaflet umuman yuklanmaydi.
-
-Avtobusning xaritadagi joyi `lib/path.ts` orqali hisoblanadi: uzluksiz
-pozitsiya (0 .. bekatlar_soni−1) yo'l chizig'idagi nuqtaga aylantiriladi.
-Taqsimot masofa bo'yicha, nuqtalar soni bo'yicha emas — aks holda yo'l zich
-chizilgan burilishlarda avtobus sekinlashib qolardi.
-
-## Deploy (statik)
-
-```bash
-# Ildiz domenda (Vercel, Netlify, o'z domeningiz)
-npm run build
-
-# GitHub Pages — repo nomi yo'lga qo'shiladi
-BASE_PATH=/bus225 npm run build
-```
-
-Natija `out/` papkasida. HTTPS majburiy — Telegram Mini App talabi.
+* **Vaqt — shahar vaqti.** `useCityClock` qurilma mintaqasidan qat'i nazar
+  Toshkent vaqtini beradi (`route.json` → `timezone_offset_hours`).
+* **Silliq harakat.** Pozitsiya har soniyada (soniyalari bilan) hisoblanadi,
+  `TransitMap` esa ikki holat orasini har kadrda to'ldiradi va avtobusni yo'l
+  yo'nalishiga buradi. Leaflet bevosita boshqariladi — har kadrda React
+  render bo'lmaydi.
+* **Kutayotgan avtobuslar ham ko'rinadi.** `fleet.ts` reyslarni `trip.bus`
+  bo'yicha yig'adi: reyslar orasida avtobus oxirgi bekatda turadi va keyingi
+  yuradigan tomonga qaraydi.
+* **Xarita** — OpenStreetMap (kalitsiz). Ranglar CSS'da yumshatilgan
+  (`.tiles-soft`). Atribut majburiy.
+* **Telegram** — to'liq ekran (Bot API 8.0+, telefonda), xaritani surganda
+  ilova yopilmaydi (`disableVerticalSwipes`), tizim "Orqaga" tugmasi, joylashuv
+  Telegram'ning `LocationManager` orqali.

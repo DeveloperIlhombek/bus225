@@ -4,25 +4,10 @@ import { useSyncExternalStore } from "react";
 import type { TelegramWebApp } from "@/lib/telegram";
 import { getWebApp, subscribeToTelegram } from "@/lib/telegram";
 
-interface TelegramState {
-  readonly webApp: TelegramWebApp | null;
-  readonly colorScheme: "light" | "dark";
-  readonly isInsideTelegram: boolean;
-}
-
 /**
- * Telegram Mini App SDK'si holati.
- *
- * SDK <TelegramScript /> tomonidan hidratsiyadan keyin yuklanadi, shuning
- * uchun u tashqi manba sifatida obuna orqali o'qiladi. Oddiy brauzerda
- * `webApp` doimo null bo'ladi — sahifa baribir to'liq ishlaydi.
+ * Telegram Mini App SDK'si (Telegram'dan tashqarida — null).
+ * SDK hidratsiyadan keyin yuklanadi, shuning uchun obuna orqali o'qiladi.
  */
-export function useTelegram(): TelegramState {
-  const webApp = useSyncExternalStore(subscribeToTelegram, getWebApp, () => null);
-
-  return {
-    webApp,
-    colorScheme: webApp?.colorScheme ?? "light",
-    isInsideTelegram: webApp !== null,
-  };
+export function useTelegram(): TelegramWebApp | null {
+  return useSyncExternalStore(subscribeToTelegram, getWebApp, () => null);
 }

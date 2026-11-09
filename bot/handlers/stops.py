@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 
 from aiogram import Router
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 
 from bot import texts
 from bot.config import Settings
@@ -33,9 +32,9 @@ async def show_stop(
         await call.answer(texts.ERROR_UNKNOWN_STOP, show_alert=True)
         return
 
-    body = texts.stop_schedule(route, index, datetime.now(), settings.next_limit)
+    body = texts.stop_schedule(route, index, route.now(), settings.next_limit)
 
-    if call.message is None:
+    if not isinstance(call.message, Message):
         await call.answer()
         return
 

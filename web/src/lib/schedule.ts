@@ -10,7 +10,7 @@ import type {
   TimeString,
   Trip,
 } from "@/types/route";
-import { minutesOfDay, parseTime } from "@/lib/time";
+import { exactMinutesOfDay, minutesOfDay, parseTime } from "@/lib/time";
 
 /** Uchrashuv chegarasi — chiziq uzunligining ulushi. Bot bilan bir xil. */
 export const MEETING_THRESHOLD_RATIO = 0.06;
@@ -49,7 +49,8 @@ export function tripDirection(trip: Trip): Direction | null {
  * vaqt oralig'i bo'yicha bajariladi.
  */
 export function tripPosition(trip: Trip, now: Date): number | null {
-  const current = minutesOfDay(now);
+  // Soniyalar ham hisobga olinadi — avtobus xaritada silliq siljiydi.
+  const current = exactMinutesOfDay(now);
 
   for (let i = 0; i < trip.times.length - 1; i += 1) {
     const first = trip.times[i];

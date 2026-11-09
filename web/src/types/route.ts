@@ -10,13 +10,18 @@ export type OptionalTime = TimeString | null;
 export type Direction = "shaharga" | "qishloqqa";
 
 export interface Stop {
+  /** Barqaror identifikator (masalan, "siyob"). */
+  readonly id?: string;
   readonly name: string;
   readonly lat: number;
   readonly lng: number;
 }
 
 export interface Trip {
+  /** Reysning noyob kodi, masalan "04S" — 4-qator, shaharga. */
   readonly bus_id: string;
+  /** Reysni bajaradigan avtobus raqami (1, 2, 3 ...). */
+  readonly bus?: number;
   /** `stops` bilan bir xil uzunlik va tartibda. */
   readonly times: readonly OptionalTime[];
 }
@@ -38,12 +43,35 @@ export interface RouteGeometry {
   readonly legs: readonly (readonly LatLngTuple[])[];
 }
 
+/** Plakatdagi jadval ustuni: qaysi bekatdan qaysi tomonga jo'nash vaqti. */
+export interface TimetableColumn {
+  readonly stop: number;
+  readonly direction: Direction;
+  readonly label: string;
+}
+
+/** Plakatdagi bitta qator — bitta aylanma reys. */
+export interface TimetableRow {
+  readonly bus: number;
+  readonly cells: readonly (string | null)[];
+}
+
+export interface Timetable {
+  readonly columns: readonly TimetableColumn[];
+  readonly rows: readonly TimetableRow[];
+}
+
 export interface Route {
   readonly route_id: string;
   readonly route_name: string;
   readonly telegram_group?: string;
+  /** Shahar vaqt mintaqasi (Toshkent — 5). Jadval shu vaqt bo'yicha. */
+  readonly timezone_offset_hours?: number;
+  /** Yo'nalishdagi avtobuslar soni. */
+  readonly buses?: number;
   readonly stops: readonly Stop[];
   readonly trips: readonly Trip[];
+  readonly timetable?: Timetable;
   readonly geometry?: RouteGeometry;
 }
 

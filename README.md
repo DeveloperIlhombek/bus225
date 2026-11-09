@@ -1,156 +1,132 @@
 # 🚌 Bus 225
 
-225-sonli **"Siyob bozori — G'o'bdin qishlog'i"** yo'nalishi uchun jadval boti
-va jonli xarita.
+225-sonli **"Siyob bozori — G'o'bdin qishlog'i"** yo'nalishi uchun Telegram bot
+va Yandex Transport uslubidagi jonli xarita (Mini App).
 
-Ikki mustaqil dastur, **bitta ma'lumot manbai**:
+Avtobuslar GPS'siz, **plakatdagi jadval bo'yicha** xaritada harakatlanadi:
+3 ta avtobus reyslarni navbat bilan bajaradi, oraliq bekatlar vaqti yo'l
+masofasidan hisoblanadi.
 
 | Qism | Texnologiya | Vazifasi |
 |---|---|---|
-| `bot/` | Python 3.11+ · aiogram 3 | Telegram bot — bekat bo'yicha keyingi avtobuslar |
-| `web/` | Next.js 16.2 · React 19 · TypeScript | Mini App — jonli xarita va jadval |
-| `data/route.json` | — | **Yagona ma'lumot manbai** |
+| `data/timetable.json` | — | **Qo'lda tahrirlanadigan manba**: bekatlar, plakat jadvali, yo'l chizig'i |
+| `tools/build_route.py` | Python | Manbadan `data/route.json` ni hisoblaydi |
+| `data/route.json` | — | Avtomatik yaratiladi — bot va Mini App shuni o'qiydi |
+| `bot/` | Python 3.11+ · aiogram 3 | Telegram bot — bekat bo'yicha keyingi avtobuslar, `/jadval` |
+| `web/` | Next.js 16 · React 19 · Leaflet | Mini App — jonli xarita |
 
 ---
 
-## Struktura
+## Jadval qanday ishlaydi
+
+Plakatda har bir qator — bitta aylanma reys: **G'o'bdin → Siyob bozori → G'o'bdin**.
 
 ```
-bus/
-├── data/
-│   └── route.json           ← YAGONA manba: bekatlar, reyslar, koordinatalar
-├── bot/                     Telegram bot (Python paketi)
-│   ├── __main__.py          Kirish nuqtasi: python -m bot
-│   ├── config.py            Muhit o'zgaruvchilari, validatsiya
-│   ├── models.py            Route / Stop / Trip — tipizatsiyalangan modellar
-│   ├── texts.py             Foydalanuvchi matnlari (bitta joyda)
-│   ├── data/repository.py   route.json ni o'qish va keshlash
-│   ├── services/schedule.py Sof mantiq: yo'nalish, pozitsiya, uchrashuv
-│   ├── keyboards/inline.py  Inline klaviaturalar, CallbackData
-│   └── handlers/            Routerlar: /start, /help, bekatlar
-├── web/                     Next.js Mini App (o'z README'si bor)
-├── tests/                   Bot testlari (pytest)
-├── legacy/index.html        Birinchi prototip — faqat tarix uchun
-├── pyproject.toml
-└── .env.example
+Avt   G'o'bdindan    Jomboy ichidan    Siyob
+      shaharga       qishloqqa         bozoridan
+ 1    06:00          07:50 (Shayman)   07:10
+ 2    06:40          08:30             08:10
+ 3    07:20          09:50             —
+ 1    08:35          11:35             11:00     ← 06:00 dagi avtobus qaytib, 08:35 da yana chiqadi
+ ...
 ```
 
-**Asosiy qoida:** jadval mantiqi (`bot/services/schedule.py` va
-`web/src/lib/schedule.ts`) Telegram'dan ham, React'dan ham mustaqil — sof
-funksiyalar. Shu sabab ikkala tomon ham to'liq testlangan va bir xil
-natija beradi.
+* Qatorlar avtobuslarga navbat bilan beriladi: **1 → 2 → 3 → 1 …**
+* Plakatda yo'q vaqtlar `tools/build_route.py` da hisoblanadi:
+  * ikki ma'lum vaqt orasidagi bekatlar — yo'l masofasiga mutanosib;
+  * oxirgi ma'lum vaqtdan keyin — o'rtacha tezlik (`speed_kmh`, 40 km/soat);
+  * bo'sh katak (3-qatorda Siyob) — keyingi ma'lum vaqtdan orqaga;
+  * avtobus keyingi reysiga ulgurmasa — reysning oxirgi qismi siqiladi.
+* Barcha vaqtlar **Toshkent vaqti** (UTC+5) bo'yicha — server yoki telefon
+  boshqa mintaqada bo'lsa ham.
+
+## Jadvalni yoki bekatni o'zgartirish
+
+1. `data/timetable.json` ni tahrirlang:
+   * `timetable.rows` — plakatdagi qatorlar, aynan plakatdagidek
+     (`"Shaymandan 07:50"` kabi izohlar ham mumkin, bo'sh katak — `null`);
+   * `stops` — bekatlar **qishloqdan shaharga** tartibda, Google Maps'dan olingan koordinatalar;
+   * `path` — yo'l chizig'i (OpenStreetMap yo'llari bo'yicha, qishloqdan shaharga).
+2. Hisoblang:
+   ```bash
+   python -m tools.build_route
+   ```
+   Skript bekat yo'ldan uzoqda bo'lsa yoki tartib noto'g'ri bo'lsa aniq xato beradi.
+3. Commit qiling — GitHub Actions testlarni o'tkazadi va Mini App'ni qayta joylaydi.
+
+`data/route.json` ni qo'lda tahrirlamang: CI `--check` bilan uning manbaga
+mosligini tekshiradi.
 
 ---
 
-## Ma'lumot formati — `data/route.json`
+## Mini App (Telegram'da ochiladigan xarita)
 
-```json
-{
-  "route_id": "225",
-  "route_name": "225-sonli \"Siyob bozori - G'o'bdin qishlog'i\"",
-  "stops": [
-    { "name": "G'o'bdin qishlog'i", "lat": 39.7010, "lng": 66.8600 }
-  ],
-  "trips": [
-    { "bus_id": "A1", "times": ["06:00", "06:12", "06:25", "06:30", "07:10"] }
-  ]
-}
-```
+Yandex Transport uslubida: butun ekran xarita, ko'k avtobuslar harakat
+yo'nalishiga burilib silliq yuradi, pastda panel — "Qayerga?" qidiruvi, eng
+yaqin bekatlar, bekat bo'yicha keyingi avtobuslar, avtobusning joriy reysi va
+plakatdagi to'liq jadval.
 
-Qoidalar:
+**Joylashtirish** — `master` ga push qilinganda avtomatik (`.github/workflows/pages.yml`):
 
-1. **`stops`** — bitta kanonik ro'yxat, **qishloqdan shaharga** tartibda.
-2. **`trips[].times`** — `stops` bilan **bir xil uzunlik va tartibda**.
-   Avtobus biror bekatda to'xtamasa — o'sha o'ringa `null`.
-3. **Yo'nalish qo'lda yozilmaydi.** Vaqt index bo'yicha oshsa — avtobus
-   shaharga, kamaysa — qishloqqa ketmoqda deb dastur o'zi aniqlaydi.
-4. Yangi avtobus qo'shish uchun `trips` ga bitta obyekt qo'shish kifoya.
+* manzil: **https://developerilhombek.github.io/bus225/**
+* bir martalik sozlash: GitHub → Settings → Pages → Source: **GitHub Actions**
 
-Fayl noto'g'ri bo'lsa bot **ishga tushmaydi** — xato aniq matn bilan
-ko'rsatiladi (uzunliklar mos emas, `bus_id` takrorlangan, vaqt formati buzuq).
+**Telegram'ga ulash** (bot ishlamayotgan bo'lsa ham ishlaydi):
 
-### Yo'l geometriyasi (ixtiyoriy)
+@BotFather → `/mybots` → bot → **Bot Settings → Menu Button** → URL:
+`https://developerilhombek.github.io/bus225/`
 
-Haqiqiy xaritada avtobus to'g'ri chiziq bo'ylab emas, **yo'l bo'ylab**
-harakatlanishi uchun `geometry` maydoni ishlatiladi:
+Sinov uchun URL parametrlari: `?t=07:30` (soatni shu vaqtdan boshlash),
+`?x=30` (vaqtni tezlatish), `?nofs` (Telegram'da to'liq ekransiz).
 
-```json
-"geometry": {
-  "legs": [
-    [[39.7010, 66.8600], [39.6998, 66.8571], [39.6950, 66.8500]],
-    [[39.6950, 66.8500], [39.6880, 66.8400]]
-  ]
-}
-```
-
-- `legs[i]` — `stops[i]` dan `stops[i+1]` gacha bo'lgan yo'l nuqtalari
-- `legs` uzunligi doimo `stops` dan bitta kam
-- Nuqta tartibi `[lat, lng]`
-
-Geometriya **bir marta** hisoblanib faylga yoziladi — yo'nalish o'zgarmaydi,
-demak ilova ishlayotganda hech qanday routing API, kalit yoki so'rov limiti
-kerak emas. Maydon bo'lmasa bekatlar to'g'ri chiziq bilan bog'lanadi va
-ilova baribir to'liq ishlaydi.
+Lokal ishga tushirish: [`web/README.md`](web/README.md).
 
 ---
 
-## Botni ishga tushirish
+## Bot
 
 ```bash
 pip install -e ".[dev]"
-cp .env.example .env        # BOT_TOKEN ni to'ldiring
+cp .env.example .env        # BOT_TOKEN va WEBAPP_URL
 python -m bot
 ```
 
 Windows PowerShell:
 
 ```powershell
-$env:BOT_TOKEN = "sizning_tokeningiz"; python -m bot
+$env:BOT_TOKEN = "sizning_tokeningiz"
+$env:WEBAPP_URL = "https://developerilhombek.github.io/bus225/"
+python -m bot
 ```
 
-Sozlamalar (`.env.example` ga qarang): `BOT_TOKEN` (majburiy),
-`WEBAPP_URL`, `ROUTE_FILE`, `NEXT_LIMIT`.
-
-### Buyruqlar
-
-- `/start` — bekatlar ro'yxati + 🗺 Jonli xarita tugmasi
-- `/help` — qisqa yordam
-- Bekat tanlansa — keyingi avtobuslar 🏙 shaharga va 🏡 qishloqqa
-  yo'nalishlari bo'yicha alohida, "25 daqiqadan keyin" ko'rinishida
-
----
-
-## Mini App
-
-Batafsil: [`web/README.md`](web/README.md)
-
-```bash
-cd web
-npm install
-npm run dev
-```
+Buyruqlar: `/start` — bekatlar (keyingi avtobuslar, avtobus raqami bilan),
+`/jadval` — plakatdagi jadval, `/help`.
 
 ---
 
 ## Testlar
 
 ```bash
-python -m pytest        # bot mantiqi
-cd web && npm test      # frontend mantiqi
+python -m tools.build_route --check   # route.json dolzarbmi
+ruff check bot tools tests && mypy && pytest
+cd web && npm run typecheck && npm run lint && npm test
 ```
 
----
+## Struktura
+
+```
+data/timetable.json   ← QO'LDA tahrirlanadi
+data/route.json       ← avtomatik (python -m tools.build_route)
+tools/build_route.py  Jadval → har bir bekat vaqti, yo'l bo'laklari
+bot/                  Telegram bot (aiogram 3)
+web/                  Mini App (Next.js, statik eksport)
+tests/                Bot va generator testlari
+legacy/index.html     Birinchi prototip — faqat tarix uchun
+```
 
 ## Keyingi qadamlar
 
-- [ ] **Haqiqiy koordinatalar** — `data/route.json` dagi `lat`/`lng` hozircha
-      namuna. Google Maps yoki OSM'da har bir bekatni uzoq bosib aniq qiymatni
-      oling (6 xona kifoya). Ularsiz "eng yaqin bekat" ham, xaritadagi joylashuv
-      ham noto'g'ri chiqadi.
-- [ ] **Yo'l geometriyasi** — koordinatalar aniqlangandan keyin `geometry.legs`
-      OSM yo'l ma'lumotidan generatsiya qilinadi.
-- [ ] **Oraliq bekat vaqtlari** — 17-maktab, G'azira, Pushkin uchun vaqtlar
-      interpolyatsiya qilingan, haqiqiysi bilan almashtirilishi kerak.
-- [ ] Mini App'ni HTTPS'ga joylashtirish va `WEBAPP_URL` ni yozish
+- [ ] Haqiqiy oraliq vaqtlar: haydovchilardan bekatlar orasidagi daqiqalarni
+      olib, `speed_kmh` o'rniga aniq qiymatlar berish
 - [ ] Eslatma: avtobus kelishiga 5 daqiqa qolganda xabar
-- [ ] Admin panel: jadvalni Telegram orqali yangilash
+- [ ] GPS (ixtiyoriy): haydovchi telefonidan jonli joylashuv

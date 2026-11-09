@@ -14,9 +14,32 @@ export function parseTime(value: TimeString): number {
   return hours * 60 + minutes;
 }
 
-/** Sana obyektidan yarim tundan boshlab o'tgan daqiqa. */
+/** Sana obyektidan yarim tundan boshlab o'tgan butun daqiqa. */
 export function minutesOfDay(now: Date): number {
   return now.getHours() * 60 + now.getMinutes();
+}
+
+/**
+ * Soniyalari bilan aniq daqiqa (masalan 8:15:30 → 495.5).
+ * Avtobuslar xaritada daqiqa ichida ham silliq siljishi uchun kerak.
+ */
+export function exactMinutesOfDay(now: Date): number {
+  return (
+    now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60 + now.getMilliseconds() / 60_000
+  );
+}
+
+/**
+ * Shahar vaqtidagi "soat" — qurilmaning vaqt mintaqasidan qat'i nazar.
+ *
+ * Qaytgan Date obyektining `getHours()`/`getMinutes()` qiymatlari shahar
+ * (masalan, Toshkent, UTC+5) vaqtini ko'rsatadi. Shu tufayli jadval
+ * funksiyalari o'zgarishsiz qoladi, foydalanuvchi telefoni boshqa mintaqaga
+ * sozlangan bo'lsa ham avtobuslar to'g'ri joyda ko'rinadi.
+ */
+export function cityClock(utcOffsetHours: number, epochMs: number = Date.now()): Date {
+  const deviceOffsetMinutes = new Date(epochMs).getTimezoneOffset(); // UTC − mahalliy
+  return new Date(epochMs + (utcOffsetHours * 60 + deviceOffsetMinutes) * 60_000);
 }
 
 /** Daqiqani "1 soat 15 daqiqa" ko'rinishida o'zbekcha yozadi. */
@@ -27,6 +50,16 @@ export function formatDuration(totalMinutes: number): string {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return minutes === 0 ? `${hours} soat` : `${hours} soat ${minutes} daqiqa`;
+}
+
+/** Qisqa ko'rinish: "hozir", "7 daq", "1 soat 5 daq". */
+export function formatShortDuration(totalMinutes: number): string {
+  const m = Math.round(totalMinutes);
+  if (m <= 0) return "hozir";
+  if (m < 60) return `${m} daq`;
+  const hours = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest === 0 ? `${hours} soat` : `${hours} soat ${rest} daq`;
 }
 
 export function formatClock(now: Date): string {

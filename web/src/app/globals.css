@@ -1,110 +1,711 @@
-@import "tailwindcss";
-
 /*
- * Rang tokenlari oddiy CSS o'zgaruvchilari sifatida beriladi.
- *
- * Telegram Mini App o'z mavzusini --tg-theme-* o'zgaruvchilari orqali
- * yuboradi, shuning uchun ular birinchi navbatda ishlatiladi; Telegram'dan
- * tashqarida (oddiy brauzerda) ular mavjud bo'lmaydi va zaxira qiymat
- * qo'llanadi.
+ * Yandex Transport uslubi: och xarita, ko'k avtobuslar, oq pastki panel.
+ * Ilova Telegram mavzusidan qat'i nazar yorug' — xarita ham yorug'.
  */
 :root {
-  --color-surface: var(--tg-theme-bg-color, #ffffff);
-  --color-surface-alt: var(--tg-theme-secondary-bg-color, #f2f4f7);
-  --color-ink: var(--tg-theme-text-color, #0f172a);
-  --color-muted: var(--tg-theme-hint-color, #64748b);
-  --color-accent: var(--tg-theme-button-color, #2563eb);
-  --color-accent-ink: var(--tg-theme-button-text-color, #ffffff);
-  --color-city: #2563eb;
-  --color-village: #ea580c;
-  --color-line: #cbd5e1;
-  color-scheme: light dark;
+  --bg: #ffffff;
+  --text: #111111;
+  --muted: #8a8a8e;
+  --chip: #f2f1ef;
+  --line: #ececec;
+  --blue: #1e88e5;
+  --sheet-h: 260px;
+  /* Telegram to'liq ekran rejimida tizim panellari va Telegram tugmalari ostida qolmaslik uchun */
+  --safe-top: calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-surface: var(--tg-theme-bg-color, #0f172a);
-    --color-surface-alt: var(--tg-theme-secondary-bg-color, #1e293b);
-    --color-ink: var(--tg-theme-text-color, #f1f5f9);
-    --color-muted: var(--tg-theme-hint-color, #94a3b8);
-    --color-city: #60a5fa;
-    --color-village: #fb923c;
-    --color-line: #334155;
-  }
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
 body {
-  background: var(--color-surface);
-  color: var(--color-ink);
-  -webkit-tap-highlight-color: transparent;
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overscroll-behavior: none;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  overscroll-behavior-y: none;
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
 }
 
-/* Avtobuslarning xarita bo'ylab silliq siljishi */
-@media (prefers-reduced-motion: no-preference) {
-  .bus-marker {
-    transition: transform 900ms cubic-bezier(0.4, 0, 0.2, 1);
+.screen {
+  position: fixed;
+  inset: 0;
+}
+
+/* ---------------------------------------------------------------- xarita */
+.transit-map {
+  position: fixed;
+  inset: 0;
+  background: #eeebe6;
+}
+.transit-map.loading {
+  background: linear-gradient(110deg, #eeebe6 30%, #f6f4f0 50%, #eeebe6 70%) 0 0 / 300% 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+@keyframes shimmer {
+  to {
+    background-position: -150% 0;
   }
 }
+.tiles-soft {
+  filter: saturate(0.55) brightness(1.05) contrast(0.95);
+}
+.transit-map .leaflet-bottom {
+  bottom: var(--sheet-h);
+}
+.leaflet-control-attribution {
+  font-size: 9px !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+}
+.leaflet-div-icon {
+  background: none;
+  border: 0;
+}
 
-/*
- * Leaflet belgilariga uslub. Ular xarita ichiga HTML sifatida joylashtiriladi
- * (L.divIcon), shuning uchun Tailwind sinflari emas, oddiy CSS ishlatiladi.
- */
-.bus-pin {
+/* Avtobus — yuqoridan ko'rinish, harakat yo'nalishiga buriladi */
+.bus {
+  position: relative;
+  width: 0;
+  height: 0;
+  transition: opacity 0.2s;
+}
+.bus-body {
+  position: absolute;
+  left: -10px;
+  top: -24px;
+  width: 20px;
+  height: 48px;
+  transform-origin: 50% 50%;
+  will-change: transform;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.35));
+}
+.bus-label {
+  position: absolute;
+  right: 10px;
+  top: 14px;
+  background: #fff;
+  color: var(--blue);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+  padding: 5px 7px;
+  border-radius: 7px;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  transform: rotate(-18deg);
+  transform-origin: right top;
+}
+.bus.dim {
+  opacity: 0.3;
+}
+.bus.sel .bus-body {
+  filter: drop-shadow(0 0 5px rgba(30, 136, 229, 0.95));
+}
+.z-mid .bus-body {
+  scale: 0.75;
+}
+.z-lo .bus-body {
+  scale: 0.55;
+}
+.z-lo .bus-label {
+  font-size: 12px;
+  padding: 3px 5px;
+}
+.z-lo .stop-pin {
+  scale: 0.7;
+}
+
+.stop-pin {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--blue);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  border: 1.5px solid #fff;
+  flex: none;
+}
+.stop-pin.sel {
+  transform: scale(1.35);
+  background: #0d47a1;
+}
+.stop-pin.lg {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+}
+
+.me-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--blue);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 8px rgba(30, 136, 229, 0.18), 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* ---------------------------------------------------------------- sarlavha */
+.topbar {
+  position: fixed;
+  z-index: 500;
+  left: 0;
+  right: 0;
+  top: var(--safe-top);
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 20px;
-  border-radius: 6px;
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 700;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  gap: 12px;
+  padding: 14px 16px 10px;
+  pointer-events: none;
 }
-
-.bus-pin__meet {
-  position: absolute;
-  top: -14px;
-  font-size: 11px;
+.topbar > * {
+  pointer-events: auto;
 }
-
-.user-pin {
-  width: 14px;
-  height: 14px;
+.avatar {
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
-  background: #10b981;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 0 3px rgb(16 185 129 / 0.3);
+  flex: none;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+.titles {
+  min-width: 0;
+}
+.titles h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  text-shadow: 0 0 2px #fff, 0 0 6px #fff, 0 0 10px rgba(255, 255, 255, 0.9);
+}
+.subtitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  max-width: 100%;
+  font-size: 15px;
+  font-weight: 500;
+  text-shadow: 0 0 2px #fff, 0 0 6px #fff;
+}
+.subtitle span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.subtitle svg {
+  flex: none;
+}
+.live {
+  margin-left: auto;
+  align-self: flex-start;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  color: #1d7a31;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.live::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: 1px;
+  background: #2fb344;
 }
 
-/* Xarita ostidagi fon ilova mavzusiga mos bo'lsin */
-.leaflet-container {
-  background: var(--color-surface-alt);
-  font: inherit;
+/* ---------------------------------------------------------------- dumaloq tugmalar */
+.fab {
+  position: fixed;
+  z-index: 600;
+  bottom: calc(var(--sheet-h) + 14px);
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.14);
+  transition: bottom 0.25s ease, transform 0.1s;
 }
-
-/* OSM atributi majburiy, lekin u ko'zga urilmasligi kerak */
-.leaflet-control-attribution {
-  font-size: 9px;
+.fab:active {
+  transform: scale(0.94);
 }
-
-/*
- * OSM tile'lari doim yorug'. Qorong'i mavzuda ular atrofdagi interfeysga
- * nisbatan ko'zni qamashtiradi, shuning uchun biroz xiralashtiriladi.
- *
- * To'liq inversiya (invert + hue-rotate) ataylab ishlatilmadi: u suv va
- * yashil hududlarni tabiiy bo'lmagan rangga bo'yaydi, yozuvlarni esa
- * o'qishni qiyinlashtiradi.
- */
-@media (prefers-color-scheme: dark) {
-  .leaflet-tile {
-    filter: brightness(0.82) saturate(0.85) contrast(1.05);
+.fab-left {
+  left: 14px;
+}
+.fab-right {
+  right: 14px;
+}
+.fab.busy svg {
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
   }
+}
+
+/* ---------------------------------------------------------------- pastki panel */
+.sheet {
+  position: fixed;
+  z-index: 700;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 62dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+  border-radius: 28px 28px 0 0;
+  box-shadow: 0 -2px 18px rgba(0, 0, 0, 0.08);
+  padding: 8px 16px calc(14px + var(--safe-bottom));
+}
+.grabber {
+  width: 38px;
+  height: 4px;
+  border-radius: 4px;
+  background: #ddd;
+  margin: 0 auto 10px;
+}
+.sheet-skeleton {
+  height: 220px;
+}
+
+.search {
+  width: 100%;
+  height: 64px;
+  border-radius: 32px;
+  background: var(--chip);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px 0 20px;
+  font-size: 20px;
+  font-weight: 600;
+}
+.search .label {
+  flex: 1;
+  text-align: center;
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text);
+}
+.search input::placeholder {
+  color: var(--muted);
+}
+
+.list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.list > li {
+  position: relative;
+}
+.list > li + li::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 62px;
+  right: 0;
+  border-top: 1px solid var(--line);
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 0;
+}
+.item-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: #f1f1f1;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.item-icon:has(.badge),
+.item-icon:has(.busnum) {
+  background: none;
+}
+.item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.item-title {
+  font-size: 18px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-sub {
+  font-size: 15px;
+  color: var(--muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.item-end {
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.item-end.soon {
+  color: #1d7a31;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 16px 0 2px;
+}
+.empty {
+  color: var(--muted);
+  padding: 14px 0;
+  text-align: center;
+  list-style: none;
+}
+
+.badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 46px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 9px;
+  background: var(--blue);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+}
+.badge.lg {
+  min-width: 64px;
+  height: 42px;
+  font-size: 22px;
+  border-radius: 12px;
+  flex: none;
+}
+.busnum {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #e8f1fd;
+  color: var(--blue);
+  font-weight: 800;
+  font-size: 19px;
+}
+.busnum.sm {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 0 6px;
+}
+.sheet-head .grow {
+  flex: 1;
+  min-width: 0;
+}
+.sheet-head h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.sheet-head p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+.close {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--chip);
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.stats {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0 4px;
+}
+.stat {
+  flex: 1;
+  min-width: 0;
+  background: var(--chip);
+  border-radius: 16px;
+  padding: 10px 12px;
+}
+.stat b {
+  display: block;
+  font-size: 18px;
+}
+.stat span {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeline {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.timeline li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 0 9px 26px;
+  font-size: 17px;
+  cursor: pointer;
+}
+.timeline li::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--blue);
+}
+.timeline li:first-child::before {
+  top: 50%;
+}
+.timeline li:last-child::before {
+  bottom: 50%;
+}
+.timeline li::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--blue);
+  box-sizing: border-box;
+}
+.timeline li.passed {
+  color: var(--muted);
+}
+.timeline li.passed::before,
+.timeline li.passed::after {
+  opacity: 0.35;
+}
+.t-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.t-time {
+  font-weight: 600;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.chip {
+  padding: 7px 12px;
+  border-radius: 99px;
+  background: var(--chip);
+  font-weight: 600;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.chip.past {
+  color: #b5b5b8;
+}
+.chip.now {
+  background: var(--blue);
+  color: #fff;
+}
+
+/* Plakatdagi jadval */
+.tt-wrap {
+  margin: 8px -4px 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.tt {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.tt th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.25;
+  padding: 10px 4px;
+  background: #fafafa;
+  border-bottom: 1px solid var(--line);
+}
+.tt td {
+  text-align: center;
+  font-size: 17px;
+  font-weight: 600;
+  padding: 9px 4px;
+  border-top: 1px solid var(--line);
+}
+.tt td small {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.tt td.bn {
+  width: 44px;
+}
+.tt td.bn .busnum {
+  margin: 0 auto;
+}
+.tt tr {
+  cursor: pointer;
+}
+.tt tr.past td {
+  color: #b5b5b8;
+}
+.tt tr.past .busnum {
+  opacity: 0.45;
+}
+.tt tr.now td {
+  background: #eaf3ff;
+}
+.hint {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 10px 2px 0;
+  line-height: 1.4;
+}
+
+.toast {
+  position: fixed;
+  z-index: 900;
+  left: 50%;
+  top: calc(var(--safe-top) + 96px);
+  transform: translate(-50%, -10px);
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(20, 20, 20, 0.88);
+  color: #fff;
+  font-size: 14px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  transition: 0.25s;
+  max-width: 86vw;
+  text-align: center;
+}
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.fatal {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+}
+.fatal-emoji {
+  font-size: 40px;
+  margin: 0;
+}
+.fatal h1 {
+  font-size: 18px;
+  margin: 0;
+}
+.fatal p {
+  color: var(--muted);
+  max-width: 280px;
+  margin: 0;
+}
+.fatal button {
+  margin-top: 8px;
+  border-radius: 12px;
+  background: var(--blue);
+  color: #fff;
+  padding: 10px 20px;
+  font-weight: 600;
+}
+.fatal-link {
+  margin-top: 8px;
+  border-radius: 12px;
+  background: var(--blue);
+  color: #fff;
+  padding: 10px 20px;
+  font-weight: 600;
+  text-decoration: none;
 }

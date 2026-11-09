@@ -7,7 +7,7 @@
  * foizi bosib o'tilganini bildiradi.
  */
 import type { GeoPoint, LatLngTuple, Route } from "@/types/route";
-import { distanceMeters } from "@/lib/geo";
+import { bearingDegrees, distanceMeters } from "@/lib/geo";
 
 const toPoint = ([lat, lng]: LatLngTuple): GeoPoint => ({ lat, lng });
 
@@ -97,4 +97,45 @@ export function positionToPoint(route: Route, position: number): GeoPoint | null
   const ratio = clamped - legIndex;
 
   return interpolateAlongPath(legPoints(route, legIndex), ratio);
+}
+
+/** Xaritadagi joy va harakat yo'nalishi (azimut, gradus). */
+export interface Pose extends GeoPoint {
+  readonly heading: number;
+}
+
+/**
+ * Pozitsiya va harakat yo'nalishidan xaritadagi joy va avtobus qaragan tomon.
+ * `forward` — pozitsiya indeksi o'sadigan tomonga (qishloqdan shaharga) harakat.
+ */
+export function positionToPose(route: Route, position: number, forward: boolean): Pose | null {
+  const here = positionToPoint(route, position);
+  if (!here) return null;
+  const lastIndex = route.stops.length - 1;
+  const step = forward ? 0.02 : -0.02;
+  const ahead = Math.min(lastIndex, Math.max(0, position + step));
+  let from: GeoPoint = here;
+  let to = positionToPoint(route, ahead);
+  if (!to || (to.lat === here.lat && to.lng === here.lng)) {
+    // Chiziq chetida — orqadagi nuqtadan hisoblaymiz
+    const behind = positionToPoint(route, Math.min(lastIndex, Math.max(0, position - step)));
+    if (behind) {
+      from = behind;
+      to = here;
+    }
+  }
+  const heading = to && (to.lat !== from.lat || to.lng !== from.lng) ? bearingDegrees(from, to) : 0;
+  return { ...here, heading };
+}
+
+/** Har bir bekatgacha yo'l bo'ylab masofa (metr), birinchi bekatdan boshlab. */
+export function cumulativeStopDistances(route: Route): number[] {
+  const result = [0];
+  for (let index = 0; index < route.stops.length - 1; index += 1) {
+    const leg = legPoints(route, index);
+    let length = 0;
+    for (let i = 0; i < leg.length - 1; i += 1) length += distanceMeters(leg[i]!, leg[i + 1]!);
+    result.push(result[index]! + length);
+  }
+  return result;
 }
