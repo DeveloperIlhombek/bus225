@@ -6,7 +6,7 @@ Kelajakda ko'p tillilik qo'shilsa, faqat shu modul ko'payadi.
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 from bot.models import Direction, Route, Stop
 from bot.services import Departure, first_departure, upcoming_departures
@@ -48,11 +48,19 @@ def _format_departure(departure: Departure, now: datetime) -> str:
 
 
 def stop_schedule(route: Route, stop_index: int, now: datetime, limit: int) -> str:
-    """Bekat uchun keyingi avtobuslar ro'yxati (HTML formatida)."""
+    """Bekat uchun keyingi avtobuslar ro'yxati (HTML formatida).
+
+    Faqat bugun ishlaydigan jadval hisobga olinadi (yakshanba/bayram — alohida).
+    """
+    table = route.timetable_for(now.date())
+    route = route.for_day(now.date())
     stop: Stop = route.stop_at(stop_index)
     upcoming = upcoming_departures(route, stop_index, now, limit)
 
-    lines = [f"🚌 <b>{route.route_name}</b>", f"📍 <b>{stop.name}</b>", ""]
+    lines = [f"🚌 <b>{route.route_name}</b>", f"📍 <b>{stop.name}</b>"]
+    if table is not None and table.label:
+        lines.append(f"🗓 {table.label}")
+    lines.append("")
 
     for direction in Direction:
         first = first_departure(route, stop_index, direction)
@@ -70,9 +78,9 @@ def stop_schedule(route: Route, stop_index: int, now: datetime, limit: int) -> s
     return "\n".join(lines)
 
 
-def timetable(route: Route) -> str:
-    """Plakatdagi jadval — xuddi plakatdagidek, avtobus raqamlari bilan."""
-    table = route.timetable
+def timetable(route: Route, day: date) -> str:
+    """Shu kungi jadval — xuddi plakatdagidek, avtobus raqamlari bilan."""
+    table = route.timetable_for(day)
     if table is None:
         return "Jadval mavjud emas."
 
@@ -88,10 +96,16 @@ def timetable(route: Route) -> str:
         f" {row.bus if row.bus is not None else '-'}   " + "    ".join(cell(c) for c in row.cells)
         for row in table.rows
     )
-    return (
-        f"🚌 <b>{route.route_name}</b>\n\n{legend}\n\n<pre>{head}\n{rows}</pre>\n"
-        "Qatorlar avtobuslarga navbat bilan beriladi: 1 → 2 → 3 → 1 …"
+    buses = {row.bus for row in table.rows if row.bus is not None}
+    note = (
+        "Qatorlar avtobuslarga navbat bilan beriladi: "
+        + " → ".join(str(b) for b in sorted(buses))
+        + " → 1 …"
+        if len(buses) > 1
+        else "Bugun bitta avtobus qatnaydi."
     )
+    title = f"🚌 <b>{route.route_name}</b>\n🗓 <b>{table.label or 'Jadval'}</b>"
+    return f"{title}\n\n{legend}\n\n<pre>{head}\n{rows}</pre>\n{note}"
 
 
 ERROR_GENERIC = "⚠️ Xatolik yuz berdi. Birozdan so'ng qayta urinib ko'ring."

@@ -9,6 +9,7 @@ import { useLocate } from "@/hooks/useLocate";
 import { useRoute } from "@/hooks/useRoute";
 import { useTelegram } from "@/hooks/useTelegram";
 import { fleetState } from "@/lib/fleet";
+import { routeForDay } from "@/lib/service";
 import { distanceMeters } from "@/lib/geo";
 import { cumulativeStopDistances, positionToPose, routePolyline } from "@/lib/path";
 import { hapticTap, setBackButton } from "@/lib/telegram";
@@ -58,7 +59,14 @@ export function TransitScreen() {
   }, [route]);
 
   // ---------------------------------------------------------------- avtobuslar
-  const fleet = useMemo(() => (route && now ? fleetState(route, now) : []), [route, now]);
+  // Bugun ishlaydigan jadval (yakshanba/bayram — alohida); sana o'zgarganda qayta tanlanadi
+  const dayKey = now ? now.toDateString() : "";
+  const today = useMemo(
+    () => (route && now ? routeForDay(route, now) : route),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- faqat sana muhim, soniyalar emas
+    [route, dayKey],
+  );
+  const fleet = useMemo(() => (today && now ? fleetState(today, now) : []), [today, now]);
   const stopDistances = useMemo(() => (route ? cumulativeStopDistances(route) : []), [route]);
 
   const mapBuses: MapBus[] = useMemo(() => {
@@ -151,7 +159,7 @@ export function TransitScreen() {
     );
   }
 
-  const sheetProps = route && now ? { route, now, fleet, open, back } : null;
+  const sheetProps = today && now ? { route: today, now, fleet, open, back } : null;
 
   return (
     <main className="screen">

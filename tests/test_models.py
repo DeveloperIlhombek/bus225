@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from bot.models import Direction, Route, RouteDataError, Trip, parse_time
@@ -66,14 +68,21 @@ class TestRouteValidation:
 
 class TestRealRouteFile:
     def test_loads(self, real_route: Route) -> None:
-        assert real_route.stop_count == 14
-        assert len(real_route.trips) == 22
+        assert real_route.stop_count == 16
+        assert len(real_route.trips) == 30  # 22 ish kuni + 8 yakshanba
         assert real_route.geometry is not None
         assert len(real_route.geometry.legs) == real_route.stop_count - 1
 
-    def test_eleven_trips_each_way(self, real_route: Route) -> None:
-        assert len(real_route.trips_in(Direction.TO_CITY)) == 11
-        assert len(real_route.trips_in(Direction.TO_VILLAGE)) == 11
+    def test_eleven_trips_each_way_on_weekdays(self, real_route: Route) -> None:
+        monday = real_route.for_day(date(2026, 11, 9))
+        assert len(monday.trips_in(Direction.TO_CITY)) == 11
+        assert len(monday.trips_in(Direction.TO_VILLAGE)) == 11
+
+    def test_sunday_and_holidays_use_sunday_schedule(self, real_route: Route) -> None:
+        assert real_route.service_for(date(2026, 11, 8)) == "sunday"
+        assert real_route.service_for(date(2027, 1, 1)) == "sunday"  # bayram, juma
+        assert real_route.service_for(date(2026, 11, 7)) == "weekday"  # shanba
+        assert len(real_route.for_day(date(2026, 11, 8)).trips) == 8
 
     def test_suffix_matches_direction(self, real_route: Route) -> None:
         for trip in real_route.trips:
@@ -83,6 +92,7 @@ class TestRealRouteFile:
     def test_timetable_and_timezone(self, real_route: Route) -> None:
         assert real_route.timetable is not None
         assert len(real_route.timetable.rows) == 11
+        assert len(real_route.timetables) == 2
         assert real_route.utc_offset_hours == 5
         assert real_route.now().utcoffset().total_seconds() == 5 * 3600  # type: ignore[union-attr]
 

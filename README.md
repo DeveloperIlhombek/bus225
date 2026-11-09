@@ -33,17 +33,22 @@ Avt   G'o'bdindan    Jomboy ichidan    Siyob
 
 * Qatorlar avtobuslarga navbat bilan beriladi: **1 → 2 → 3 → 1 …**
 * Plakatda yo'q vaqtlar `tools/build_route.py` da hisoblanadi:
-  * ikki ma'lum vaqt orasidagi bekatlar — yo'l masofasiga mutanosib;
-  * oxirgi ma'lum vaqtdan keyin — o'rtacha tezlik (`speed_kmh`, 40 km/soat);
+  * bekatdagi `minutes` — G'o'bdindan necha daqiqada o'tishi (@AVTOBUS_225 guruhidagi
+    haqiqiy o'tish vaqtlaridan); qolgan bekatlar — qo'shnilari orasida masofaga mutanosib;
+  * ikki ma'lum vaqt orasidagi bekatlar — shu "vaqt koordinatasi"ga mutanosib;
+  * oxirgi ma'lum bekatdan keyin — o'rtacha tezlik (`speed_kmh`, 40 km/soat);
   * bo'sh katak (3-qatorda Siyob) — keyingi ma'lum vaqtdan orqaga;
   * avtobus keyingi reysiga ulgurmasa — reysning oxirgi qismi siqiladi.
+* **Bir nechta jadval** (`services`): ish kunlari — 3 avtobus, yakshanba — 1 avtobus,
+  4 reys. `holidays` dagi sanalarda yakshanba jadvali ishlaydi. Bot ham, Mini App ham
+  bugungi kunga qarab o'zi tanlaydi.
 * Barcha vaqtlar **Toshkent vaqti** (UTC+5) bo'yicha — server yoki telefon
   boshqa mintaqada bo'lsa ham.
 
 ## Jadvalni yoki bekatni o'zgartirish
 
 1. `data/timetable.json` ni tahrirlang:
-   * `timetable.rows` — plakatdagi qatorlar, aynan plakatdagidek
+   * `services[].rows` — plakatdagi qatorlar, aynan plakatdagidek
      (`"Shaymandan 07:50"` kabi izohlar ham mumkin, bo'sh katak — `null`);
    * `stops` — bekatlar **qishloqdan shaharga** tartibda, Google Maps'dan olingan koordinatalar;
    * `path` — yo'l chizig'i (OpenStreetMap yo'llari bo'yicha, qishloqdan shaharga).
