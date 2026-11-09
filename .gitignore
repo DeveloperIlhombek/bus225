@@ -27,3 +27,7 @@ web/public/route.json
 .idea/
 .DS_Store
 Thumbs.db
+
+# Jonli holat (serverda yaratiladi)
+data/live.json
+data/live.tmp
