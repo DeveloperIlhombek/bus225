@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, Message
 
@@ -29,6 +29,18 @@ async def cmd_start(
     )
 
 
+@router.message(Command("jadval"))
+async def cmd_timetable(message: Message, repository: RouteRepository) -> None:
+    await message.answer(texts.timetable(repository.get()), parse_mode="HTML")
+
+
+@router.callback_query(NavCallback.filter(F.action == "timetable"))
+async def show_timetable(call: CallbackQuery, repository: RouteRepository) -> None:
+    if isinstance(call.message, Message):
+        await call.message.answer(texts.timetable(repository.get()), parse_mode="HTML")
+    await call.answer()
+
+
 @router.message(Command("help"))
 async def cmd_help(message: Message, repository: RouteRepository) -> None:
     route = repository.get()
@@ -36,6 +48,7 @@ async def cmd_help(message: Message, repository: RouteRepository) -> None:
     await message.answer(
         f"🚌 <b>{route.route_name}</b>\n\n"
         "/start — bekatlar ro'yxati\n"
+        "/jadval — to'liq jadval (plakatdagidek)\n"
         "/help — shu yordam\n\n"
         "Bekatni tanlasangiz, bot hozirgi vaqtga qarab keyingi avtobuslarni "
         "ikkala yo'nalish bo'yicha alohida ko'rsatadi."
@@ -44,12 +57,12 @@ async def cmd_help(message: Message, repository: RouteRepository) -> None:
     )
 
 
-@router.callback_query(NavCallback.filter())
+@router.callback_query(NavCallback.filter(F.action == "stops"))
 async def back_to_stops(
     call: CallbackQuery, repository: RouteRepository, settings: Settings
 ) -> None:
     route = repository.get()
-    if call.message is not None:
+    if isinstance(call.message, Message):
         await call.message.edit_text(
             texts.PROMPT_PICK_STOP,
             reply_markup=stops_keyboard(route, settings.webapp_url),

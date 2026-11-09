@@ -66,17 +66,25 @@ class TestRouteValidation:
 
 class TestRealRouteFile:
     def test_loads(self, real_route: Route) -> None:
-        assert real_route.stop_count == 5
-        assert len(real_route.trips) == 14
+        assert real_route.stop_count == 14
+        assert len(real_route.trips) == 22
+        assert real_route.geometry is not None
+        assert len(real_route.geometry.legs) == real_route.stop_count - 1
 
-    def test_seven_trips_each_way(self, real_route: Route) -> None:
-        assert len(real_route.trips_in(Direction.TO_CITY)) == 7
-        assert len(real_route.trips_in(Direction.TO_VILLAGE)) == 7
+    def test_eleven_trips_each_way(self, real_route: Route) -> None:
+        assert len(real_route.trips_in(Direction.TO_CITY)) == 11
+        assert len(real_route.trips_in(Direction.TO_VILLAGE)) == 11
 
-    def test_a_prefixed_buses_head_to_city(self, real_route: Route) -> None:
+    def test_suffix_matches_direction(self, real_route: Route) -> None:
         for trip in real_route.trips:
-            expected = Direction.TO_CITY if trip.bus_id.startswith("A") else Direction.TO_VILLAGE
+            expected = Direction.TO_CITY if trip.bus_id.endswith("S") else Direction.TO_VILLAGE
             assert trip.direction is expected, trip.bus_id
+
+    def test_timetable_and_timezone(self, real_route: Route) -> None:
+        assert real_route.timetable is not None
+        assert len(real_route.timetable.rows) == 11
+        assert real_route.utc_offset_hours == 5
+        assert real_route.now().utcoffset().total_seconds() == 5 * 3600  # type: ignore[union-attr]
 
 
 class TestRouteGeometry:

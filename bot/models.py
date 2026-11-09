@@ -6,9 +6,11 @@ sinflar shu faylni o'qib, tekshirilgan (validated) obyektlarga aylantiradi.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any, Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from enum import StrEnum
+from typing import Any
 
 # "HH:MM" formatidagi vaqt yoki None (avtobus bu bekatda to'xtamaydi)
 TimeStr = str
@@ -19,7 +21,7 @@ class RouteDataError(ValueError):
     """route.json tuzilishi noto'g'ri bo'lganda ko'tariladi."""
 
 
-class Direction(str, Enum):
+class Direction(StrEnum):
     """Avtobus harakat yo'nalishi.
 
     `stops` ro'yxati QISHLOQDAN SHAHARGA tartibda yozilgani uchun yo'nalishni
@@ -30,7 +32,7 @@ class Direction(str, Enum):
     TO_VILLAGE = "qishloqqa"
 
     @property
-    def opposite(self) -> "Direction":
+    def opposite(self) -> Direction:
         return Direction.TO_VILLAGE if self is Direction.TO_CITY else Direction.TO_CITY
 
 
@@ -52,7 +54,7 @@ class Stop:
     lng: float
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "Stop":
+    def from_dict(cls, raw: dict[str, Any]) -> Stop:
         try:
             return cls(name=str(raw["name"]), lat=float(raw["lat"]), lng=float(raw["lng"]))
         except (KeyError, TypeError, ValueError) as exc:
@@ -74,7 +76,7 @@ class RouteGeometry:
     legs: tuple[tuple[tuple[float, float], ...], ...]
 
     @classmethod
-    def from_dict(cls, raw: Any, stop_count: int) -> "RouteGeometry":
+    def from_dict(cls, raw: Any, stop_count: int) -> RouteGeometry:
         raw_legs = raw.get("legs") if isinstance(raw, dict) else None
         if not isinstance(raw_legs, list):
             raise RouteDataError("'geometry.legs' ro'yxat bo'lishi kerak.")
@@ -107,13 +109,15 @@ class RouteGeometry:
 
 @dataclass(frozen=True, slots=True)
 class Trip:
-    """Bitta avtobusning bitta reysi."""
+    """Bitta avtobusning bitta (bir tomonlama) reysi."""
 
     bus_id: str
     times: tuple[OptionalTime, ...]
+    # Reysni bajaradigan avtobus raqami (1, 2, 3 ...). Eski formatda bo'lmasligi mumkin.
+    bus: int | None = None
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any], stop_count: int) -> "Trip":
+    def from_dict(cls, raw: dict[str, Any], stop_count: int) -> Trip:
         try:
             bus_id = str(raw["bus_id"])
             times = tuple(raw["times"])
@@ -129,7 +133,15 @@ class Trip:
             if value is not None:
                 parse_time(value)  # faqat tekshirish uchun
 
-        trip = cls(bus_id=bus_id, times=times)
+        raw_bus = raw.get("bus")
+        try:
+            bus = int(raw_bus) if raw_bus is not None else None
+        except (TypeError, ValueError) as exc:
+            raise RouteDataError(
+                f"{bus_id} reysida 'bus' butun son bo'lishi kerak: {raw_bus!r}"
+            ) from exc
+
+        trip = cls(bus_id=bus_id, times=times, bus=bus)
         if trip.direction is None:
             raise RouteDataError(
                 f"{bus_id} reysida kamida 2 ta vaqt bo'lishi kerak — "
@@ -153,6 +165,43 @@ class Trip:
     def time_at(self, stop_index: int) -> OptionalTime:
         return self.times[stop_index]
 
+    @property
+    def last_stop_index(self) -> int:
+        """Reys tugaydigan bekat (harakat tartibida oxirgi to'xtash)."""
+        indices = [i for i, t in enumerate(self.times) if t is not None]
+        return indices[-1] if self.direction is Direction.TO_CITY else indices[0]
+
+    @property
+    def bus_label(self) -> str:
+        return f"{self.bus}-avtobus" if self.bus is not None else self.bus_id
+
+
+@dataclass(frozen=True, slots=True)
+class TimetableRow:
+    """Plakatdagi bitta qator: qaysi avtobus va kataklar (aynan plakatdagidek)."""
+
+    bus: int | None
+    cells: tuple[str | None, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Timetable:
+    labels: tuple[str, ...]
+    rows: tuple[TimetableRow, ...]
+
+    @classmethod
+    def from_dict(cls, raw: Any) -> Timetable | None:
+        if not isinstance(raw, dict):
+            return None
+        try:
+            labels = tuple(str(c["label"]) for c in raw["columns"])
+            rows = tuple(
+                TimetableRow(bus=r.get("bus"), cells=tuple(r["cells"])) for r in raw["rows"]
+            )
+        except (KeyError, TypeError) as exc:
+            raise RouteDataError(f"'timetable' tuzilishi noto'g'ri: {exc}") from exc
+        return cls(labels=labels, rows=rows)
+
 
 @dataclass(frozen=True, slots=True)
 class Route:
@@ -162,9 +211,20 @@ class Route:
     stops: tuple[Stop, ...]
     trips: tuple[Trip, ...]
     geometry: RouteGeometry | None = None
+    timetable: Timetable | None = None
+    # Jadval qaysi vaqt mintaqasida yozilgan (Toshkent — UTC+5, yozgi vaqt yo'q)
+    utc_offset_hours: float = 5
+    _tz: timezone = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_tz", timezone(timedelta(hours=self.utc_offset_hours)))
+
+    def now(self) -> datetime:
+        """Shahar vaqti — server qaysi mamlakatda bo'lishidan qat'i nazar."""
+        return datetime.now(self._tz)
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "Route":
+    def from_dict(cls, raw: dict[str, Any]) -> Route:
         raw_stops = raw.get("stops")
         raw_trips = raw.get("trips")
         if not isinstance(raw_stops, list) or len(raw_stops) < 2:
@@ -195,6 +255,8 @@ class Route:
             stops=stops,
             trips=trips,
             geometry=geometry,
+            timetable=Timetable.from_dict(raw.get("timetable")),
+            utc_offset_hours=float(raw.get("timezone_offset_hours", 5)),
         )
 
     @property

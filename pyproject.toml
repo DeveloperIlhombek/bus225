@@ -1,6 +1,6 @@
 [project]
 name = "bus225-bot"
-version = "2.0.0"
+version = "3.0.0"
 description = "225-yo'nalish avtobus jadvali Telegram boti"
 requires-python = ">=3.11"
 dependencies = [
@@ -23,7 +23,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["bot", "bot.data", "bot.handlers", "bot.keyboards", "bot.services"]
+packages = ["bot", "bot.data", "bot.handlers", "bot.keyboards", "bot.services", "tools"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -40,5 +40,5 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["bot"]
+files = ["bot", "tools"]
 ignore_missing_imports = true

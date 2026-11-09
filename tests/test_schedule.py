@@ -105,3 +105,23 @@ class TestActiveBuses:
 
     def test_empty_at_night(self, real_route: Route) -> None:
         assert active_buses(real_route, datetime(2026, 9, 5, 3, 0)) == []
+
+
+class TestUpcomingDepartures:
+    def test_arrival_at_terminal_is_not_a_departure(self, real_route: Route) -> None:
+        from bot.services import upcoming_departures
+
+        siyob = real_route.stop_count - 1
+        result = upcoming_departures(real_route, siyob, datetime(2026, 9, 5, 6, 0), limit=20)
+        assert result[Direction.TO_CITY] == []  # shaharga reyslar Siyobda tugaydi
+        assert [d.time for d in result[Direction.TO_VILLAGE]][:2] == ["07:10", "08:10"]
+
+    def test_bus_numbers_are_attached(self, real_route: Route) -> None:
+        from bot.services import upcoming_departures
+
+        result = upcoming_departures(real_route, 0, datetime(2026, 9, 5, 6, 30), limit=3)
+        assert [(d.time, d.trip.bus) for d in result[Direction.TO_CITY]] == [
+            ("06:40", 2),
+            ("07:20", 3),
+            ("08:35", 1),
+        ]

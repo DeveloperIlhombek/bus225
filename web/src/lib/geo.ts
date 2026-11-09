@@ -14,6 +14,16 @@ export function distanceMeters(a: GeoPoint, b: GeoPoint): number {
   return 2 * EARTH_RADIUS_METERS * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
+/** A nuqtadan B ga yo'nalish (azimut), gradusda: 0 — shimol, 90 — sharq. */
+export function bearingDegrees(a: GeoPoint, b: GeoPoint): number {
+  const lat1 = toRadians(a.lat);
+  const lat2 = toRadians(b.lat);
+  const dLng = toRadians(b.lng - a.lng);
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
 /** Foydalanuvchiga eng yaqin bekat. Bekatlar bo'sh bo'lsa — null. */
 export function findNearestStop(
   stops: readonly Stop[],

@@ -22,7 +22,7 @@ class Settings:
     next_limit: int
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         token = os.getenv("BOT_TOKEN", "").strip()
         if not token:
             raise ConfigError(

@@ -19,15 +19,20 @@ class StopCallback(CallbackData, prefix="stop"):
 class NavCallback(CallbackData, prefix="nav"):
     """Navigatsiya harakatlari."""
 
-    action: str  # "stops"
+    action: str  # "stops" | "timetable"
 
 
 def stops_keyboard(route: Route, webapp_url: str | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for index, stop in enumerate(route.stops):
         builder.button(text=stop.name, callback_data=StopCallback(index=index))
-    builder.adjust(1)
+    builder.adjust(2)  # 14 ta bekat — ikki ustunda ixchamroq
 
+    builder.row(
+        InlineKeyboardButton(
+            text=texts.BTN_TIMETABLE, callback_data=NavCallback(action="timetable").pack()
+        )
+    )
     if webapp_url:
         builder.row(
             InlineKeyboardButton(text=texts.BTN_LIVE_MAP, web_app=WebAppInfo(url=webapp_url))

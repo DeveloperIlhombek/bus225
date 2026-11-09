@@ -41,6 +41,53 @@ def departures_at(route: Route, stop_index: int) -> dict[Direction, list[TimeStr
     return result
 
 
+@dataclass(frozen=True, slots=True)
+class Departure:
+    """Bekatdan bitta jo'nash."""
+
+    time: TimeStr
+    direction: Direction
+    trip: Trip
+
+
+def upcoming_departures(
+    route: Route, stop_index: int, now: datetime, limit: int = 3
+) -> dict[Direction, list[Departure]]:
+    """Bekatdan keyingi jo'nashlar, yo'nalish bo'yicha.
+
+    Reys shu bekatda TUGASA (masalan, shaharga reys Siyob bozorida), bu
+    jo'nash emas — u ro'yxatga kiritilmaydi.
+    """
+    if not 0 <= stop_index < route.stop_count:
+        raise IndexError(f"Bekat indeksi chegaradan tashqarida: {stop_index}")
+
+    current = _now_minutes(now)
+    result: dict[Direction, list[Departure]] = {d: [] for d in Direction}
+    for trip in route.trips:
+        time_ = trip.time_at(stop_index)
+        if trip.direction is None or time_ is None or trip.last_stop_index == stop_index:
+            continue
+        if parse_time(time_) >= current:
+            result[trip.direction].append(Departure(time_, trip.direction, trip))
+
+    for direction, items in result.items():
+        items.sort(key=lambda d: d.time)
+        result[direction] = items[:limit]
+    return result
+
+
+def first_departure(route: Route, stop_index: int, direction: Direction) -> TimeStr | None:
+    """Kunning birinchi jo'nashi (reyslar tugaganda "ertaga" uchun)."""
+    times = [
+        time_
+        for t in route.trips
+        if t.direction is direction
+        and (time_ := t.time_at(stop_index)) is not None
+        and t.last_stop_index != stop_index
+    ]
+    return min(times) if times else None
+
+
 def next_departures(times: list[TimeStr], now: datetime, limit: int = 3) -> list[TimeStr]:
     """Hozirgi vaqtdan keyingi eng yaqin `limit` ta jo'nashni qaytaradi.
 

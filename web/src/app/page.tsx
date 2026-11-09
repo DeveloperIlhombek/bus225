@@ -1,5 +1,5 @@
-import { LiveRouteScreen } from "@/components/LiveRouteScreen";
+import { TransitScreen } from "@/components/TransitScreen";
 
 export default function HomePage() {
-  return <LiveRouteScreen />;
+  return <TransitScreen />;
 }

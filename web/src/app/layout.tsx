@@ -14,10 +14,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
-  ],
+  userScalable: false,
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({
@@ -25,7 +23,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="uz">
-      <body className="min-h-dvh antialiased">
+      <body>
         {children}
         <TelegramScript />
       </body>
