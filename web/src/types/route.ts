@@ -22,6 +22,8 @@ export interface Trip {
   readonly bus_id: string;
   /** Reysni bajaradigan avtobus raqami (1, 2, 3 ...). */
   readonly bus?: number;
+  /** Qaysi jadvalga tegishli ("weekday", "sunday"). Yo'q bo'lsa — har kuni. */
+  readonly service?: string;
   /** `stops` bilan bir xil uzunlik va tartibda. */
   readonly times: readonly OptionalTime[];
 }
@@ -57,6 +59,11 @@ export interface TimetableRow {
 }
 
 export interface Timetable {
+  readonly id?: string;
+  readonly label?: string;
+  /** Hafta kunlari: 0 — dushanba … 6 — yakshanba. */
+  readonly days?: readonly number[];
+  readonly buses?: number;
   readonly columns: readonly TimetableColumn[];
   readonly rows: readonly TimetableRow[];
 }
@@ -71,7 +78,12 @@ export interface Route {
   readonly buses?: number;
   readonly stops: readonly Stop[];
   readonly trips: readonly Trip[];
+  /** Eski format: bitta jadval. */
   readonly timetable?: Timetable;
+  /** Bir nechta jadval: ish kunlari, yakshanba ... */
+  readonly timetables?: readonly Timetable[];
+  /** Yakshanba jadvali ishlaydigan bayram kunlari, "YYYY-MM-DD". */
+  readonly holidays?: readonly string[];
   readonly geometry?: RouteGeometry;
 }
 

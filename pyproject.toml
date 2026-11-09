@@ -29,6 +29,7 @@ packages = ["bot", "bot.data", "bot.handlers", "bot.keyboards", "bot.services", 
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100

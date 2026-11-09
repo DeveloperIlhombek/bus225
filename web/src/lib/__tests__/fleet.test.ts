@@ -4,6 +4,7 @@ import { fleetState, tripVisits, upcomingAtStop } from "@/lib/fleet";
 import { busStatusText, clockOf, routeTitle } from "@/lib/describe";
 import { cityClock } from "@/lib/time";
 import { positionToPose } from "@/lib/path";
+import { routeForDay } from "@/lib/service";
 
 /** Bitta avtobus: qishloq → shahar, kutadi, shahar → qishloq. */
 const route: Route = {
@@ -98,5 +99,26 @@ describe("positionToPose", () => {
   it("teskari yo'nalishda ~0°, chiziq chetida ham", () => {
     expect(positionToPose(route, 2, false)!.heading).toBeCloseTo(0, 0);
     expect(positionToPose(route, 2, true)!.heading).toBeCloseTo(180, 0);
+  });
+});
+
+describe("routeForDay", () => {
+  const multi: Route = {
+    ...route,
+    trips: [
+      { bus_id: "01S", bus: 1, service: "weekday", times: ["08:00", "08:30", "09:00"] },
+      { bus_id: "S01S", bus: 1, service: "sunday", times: ["09:00", "09:30", "10:00"] },
+    ],
+    timetables: [
+      { id: "weekday", days: [0, 1, 2, 3, 4, 5], columns: [], rows: [] },
+      { id: "sunday", days: [6], columns: [], rows: [] },
+    ],
+    holidays: ["2027-01-01"],
+  };
+  const ids = (d: Date) => routeForDay(multi, d).trips.map((t) => t.bus_id);
+  it("ish kuni, yakshanba va bayram", () => {
+    expect(ids(new Date(2026, 10, 9))).toEqual(["01S"]);
+    expect(ids(new Date(2026, 10, 8))).toEqual(["S01S"]);
+    expect(ids(new Date(2027, 0, 1))).toEqual(["S01S"]);
   });
 });

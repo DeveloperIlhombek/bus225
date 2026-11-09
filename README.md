@@ -33,17 +33,22 @@ Avt   G'o'bdindan    Jomboy ichidan    Siyob
 
 * Qatorlar avtobuslarga navbat bilan beriladi: **1 → 2 → 3 → 1 …**
 * Plakatda yo'q vaqtlar `tools/build_route.py` da hisoblanadi:
-  * ikki ma'lum vaqt orasidagi bekatlar — yo'l masofasiga mutanosib;
-  * oxirgi ma'lum vaqtdan keyin — o'rtacha tezlik (`speed_kmh`, 40 km/soat);
+  * bekatdagi `minutes` — G'o'bdindan necha daqiqada o'tishi (@AVTOBUS_225 guruhidagi
+    haqiqiy o'tish vaqtlaridan); qolgan bekatlar — qo'shnilari orasida masofaga mutanosib;
+  * ikki ma'lum vaqt orasidagi bekatlar — shu "vaqt koordinatasi"ga mutanosib;
+  * oxirgi ma'lum bekatdan keyin — o'rtacha tezlik (`speed_kmh`, 40 km/soat);
   * bo'sh katak (3-qatorda Siyob) — keyingi ma'lum vaqtdan orqaga;
   * avtobus keyingi reysiga ulgurmasa — reysning oxirgi qismi siqiladi.
+* **Bir nechta jadval** (`services`): ish kunlari — 3 avtobus, yakshanba — 1 avtobus,
+  4 reys. `holidays` dagi sanalarda yakshanba jadvali ishlaydi. Bot ham, Mini App ham
+  bugungi kunga qarab o'zi tanlaydi.
 * Barcha vaqtlar **Toshkent vaqti** (UTC+5) bo'yicha — server yoki telefon
   boshqa mintaqada bo'lsa ham.
 
 ## Jadvalni yoki bekatni o'zgartirish
 
 1. `data/timetable.json` ni tahrirlang:
-   * `timetable.rows` — plakatdagi qatorlar, aynan plakatdagidek
+   * `services[].rows` — plakatdagi qatorlar, aynan plakatdagidek
      (`"Shaymandan 07:50"` kabi izohlar ham mumkin, bo'sh katak — `null`);
    * `stops` — bekatlar **qishloqdan shaharga** tartibda, Google Maps'dan olingan koordinatalar;
    * `path` — yo'l chizig'i (OpenStreetMap yo'llari bo'yicha, qishloqdan shaharga).
@@ -103,6 +108,43 @@ Buyruqlar: `/start` — bekatlar (keyingi avtobuslar, avtobus raqami bilan),
 `/jadval` — plakatdagi jadval, `/help`.
 
 ---
+
+## Haydovchi rejimi va jonli joylashuv
+
+Avtobus xaritada **jadval bo'yicha** yuradi; haydovchi (pul teruvchi) joylashuv
+yuborsa — **haqiqiy joyida** ko'rinadi (yorlig'ida yashil nuqta, sarlavhada
+"Jonli"). 3 daqiqa signal bo'lmasa — yana jadvalga qaytadi.
+
+Haydovchi uchun uch yo'l (birgalikda ishlaydi):
+
+1. **Haydovchi paneli** — botda `/haydovchi` → "🚌 Haydovchi paneli" (Mini App,
+   `/driver/` sahifasi): avtobusni tanlash, "▶ Reysni boshlash" (GPS har 5 soniyada,
+   ekran o'chmaydi), bekat tugmalari, "⏹ Reysni tugatish".
+2. **Telegram jonli joylashuvi** — botga 📎 → Joylashuv → *Jonli joylashuvni
+   ulashish (8 soat)*. Panel yopiq, telefon cho'ntakda bo'lsa ham ishlaydi.
+3. **Bekat tugmalari** (zaxira) — bosilganda avtobus o'sha bekatga qo'yiladi va
+   `GROUP_CHAT_ID` guruhiga "📍 1-avtobus — Perez (07:44)" xabari ketadi.
+
+Kim haydovchi: `.env` dagi `DRIVERS=telegram_id:avtobus,...` (ID — botga `/myid`).
+Mini App so'rovlari Telegram `initData` imzosi bilan tekshiriladi.
+
+### VPS'ga o'rnatish (Ubuntu 22.04)
+
+1. Domen `bus.mentorme.uz` ning A-yozuvi VPS IP'siga qaratilgan bo'lsin.
+2. Serverda:
+   ```bash
+   git clone https://github.com/DeveloperIlhombek/bus225.git /tmp/bus225
+   sudo bash /tmp/bus225/deploy/install.sh bus.mentorme.uz
+   sudo nano /opt/bus225/.env        # BOT_TOKEN, DRIVERS, GROUP_CHAT_ID
+   sudo systemctl restart bus225-bot
+   curl https://bus.mentorme.uz/api/health
+   ```
+   Skript Python 3.12 (uv), systemd xizmati, nginx va Let's Encrypt HTTPS'ni sozlaydi.
+   Yangilash — shu skriptni qayta ishga tushirish.
+3. Bot faqat **bitta joyda** ishlashi kerak (kompyuterdagi nusxani o'chiring).
+
+Mini App API manzili build paytida beriladi: GitHub → Settings → Variables →
+`API_URL` (bo'lmasa `https://bus.mentorme.uz`).
 
 ## Testlar
 

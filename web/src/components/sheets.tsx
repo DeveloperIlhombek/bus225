@@ -23,6 +23,8 @@ interface SheetProps {
   readonly fleet: readonly BusState[];
   readonly open: (view: View) => void;
   readonly back: () => void;
+  /** Hozir jonli joylashuv yuborayotgan avtobuslar. */
+  readonly liveBuses: ReadonlySet<string>;
 }
 
 const routesLabel = (route: Route) => `Bekat · ${route.route_id}`;
@@ -130,7 +132,7 @@ export function SearchSheet({ route, open, back }: SheetProps) {
 }
 
 // ------------------------------------------------------------------------- bekat
-export function StopSheet({ route, now, open, back, index }: SheetProps & { index: number }) {
+export function StopSheet({ route, now, open, back, liveBuses, index }: SheetProps & { index: number }) {
   const stop = route.stops[index];
   if (!stop) return null;
   const current = exactMinutesOfDay(now);
@@ -166,7 +168,7 @@ export function StopSheet({ route, now, open, back, index }: SheetProps & { inde
                     <Item
                       key={visit.trip.bus_id}
                       icon={<BusNumber value={visit.bus} />}
-                      title={`${visit.bus}-avtobus`}
+                      title={`${visit.bus}-avtobus${liveBuses.has(visit.bus) ? " · 📡" : ""}`}
                       subtitle={visit.isArrival ? "shu yerga keladi" : formatShortDuration(left) + (left >= 1 ? " qoldi" : "")}
                       end={clockOf(visit.minute)}
                       endSoon={left < 10}
@@ -192,6 +194,7 @@ export function BusSheet({
   fleet,
   open,
   back,
+  liveBuses,
   id,
   stopDistances,
 }: SheetProps & { id: string; stopDistances: readonly number[] }) {
@@ -220,7 +223,7 @@ export function BusSheet({
       <SheetHeader
         icon={<RouteBadge id={route.route_id} large />}
         title={`${id}-avtobus`}
-        subtitle={busStatusText(route, state, now)}
+        subtitle={(liveBuses.has(id) ? "📡 Jonli · " : "🗓 Jadval bo'yicha · ") + busStatusText(route, state, now)}
         onClose={back}
       />
       <div className="stats">
@@ -273,7 +276,8 @@ export function TimetableSheet({ route, now, open, back }: SheetProps) {
   const table = route.timetable;
   const current = exactMinutesOfDay(now);
   const rowState = (row: number) => {
-    const code = String(row + 1).padStart(2, "0");
+    const prefix = !table?.id || table.id === "weekday" ? "" : table.id[0]!.toUpperCase();
+    const code = prefix + String(row + 1).padStart(2, "0");
     const legs = route.trips.filter((trip) => trip.bus_id.startsWith(code));
     if (legs.length === 0) return "";
     const start = Math.min(...legs.map(tripStart));
@@ -286,7 +290,7 @@ export function TimetableSheet({ route, now, open, back }: SheetProps) {
       <SheetHeader
         icon={<RouteBadge id={route.route_id} large />}
         title={`${route.route_id} jadvali`}
-        subtitle={routeTitle(route)}
+        subtitle={table?.label ? `Bugun: ${table.label}` : routeTitle(route)}
         onClose={back}
       />
       {table ? (
@@ -323,8 +327,10 @@ export function TimetableSheet({ route, now, open, back }: SheetProps) {
             </table>
           </div>
           <p className="hint">
-            Qatorlar avtobuslarga navbat bilan beriladi: 1 → 2 → 3 → 1 … Oraliq bekatlar vaqti yo&apos;l
-            masofasidan hisoblangan.
+            {(table.buses ?? 1) > 1
+              ? "Qatorlar avtobuslarga navbat bilan beriladi: 1 → 2 → 3 → 1 … "
+              : "Bugun bitta avtobus qatnaydi. "}
+            Oraliq bekatlar vaqti guruhdagi o&apos;tish vaqtlaridan hisoblangan.
           </p>
         </>
       ) : (

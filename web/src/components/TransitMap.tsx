@@ -23,6 +23,8 @@ export interface MapBus {
   readonly pose: Pose;
   readonly dimmed: boolean;
   readonly selected: boolean;
+  /** Haydovchidan kelgan haqiqiy joylashuv (jadval emas). */
+  readonly live?: boolean;
 }
 
 export interface FocusRequest {
@@ -225,6 +227,7 @@ export function TransitMap(props: TransitMapProps) {
       }
       entry.root?.classList.toggle("dim", bus.dimmed);
       entry.root?.classList.toggle("sel", bus.selected);
+      entry.root?.classList.toggle("is-live", bus.live === true);
     }
 
     for (const [id, entry] of busesRef.current) {

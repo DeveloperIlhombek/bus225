@@ -27,17 +27,24 @@ async def cmd_start(
         parse_mode="HTML",
         reply_markup=stops_keyboard(route, settings.webapp_url),
     )
+    if message.from_user and settings.is_driver(message.from_user.id):
+        await message.answer("🚌 Siz haydovchisiz: /haydovchi — panel va bekat tugmalari.")
+
+
+def _timetable_text(repository: RouteRepository) -> str:
+    route = repository.get()
+    return texts.timetable(route, route.now().date())
 
 
 @router.message(Command("jadval"))
 async def cmd_timetable(message: Message, repository: RouteRepository) -> None:
-    await message.answer(texts.timetable(repository.get()), parse_mode="HTML")
+    await message.answer(_timetable_text(repository), parse_mode="HTML")
 
 
 @router.callback_query(NavCallback.filter(F.action == "timetable"))
 async def show_timetable(call: CallbackQuery, repository: RouteRepository) -> None:
     if isinstance(call.message, Message):
-        await call.message.answer(texts.timetable(repository.get()), parse_mode="HTML")
+        await call.message.answer(_timetable_text(repository), parse_mode="HTML")
     await call.answer()
 
 

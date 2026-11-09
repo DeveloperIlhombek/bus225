@@ -709,3 +709,140 @@ button {
   font-weight: 600;
   text-decoration: none;
 }
+
+/* Jonli joylashuv */
+.bus.is-live .bus-label::after {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #2fb344;
+  vertical-align: 1px;
+  animation: pulse 1.6s infinite;
+}
+.live:not(.real) {
+  color: #555;
+}
+.live:not(.real)::before {
+  background: #9e9e9e;
+}
+
+/* ---------------------------------------------------------------- haydovchi paneli */
+.driver {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  background: #f4f3f1;
+  padding: calc(var(--safe-top) + 16px) 16px calc(24px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.driver-head h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+}
+.driver-head p,
+.muted {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+.driver-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 14px 16px 16px;
+}
+.driver-card .section-title {
+  margin-top: 0;
+}
+.bus-pick {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+.pick {
+  flex: 1;
+  height: 64px;
+  border-radius: 16px;
+  background: var(--chip);
+  font-size: 28px;
+  font-weight: 800;
+}
+.pick.sel {
+  background: var(--blue);
+  color: #fff;
+}
+.pick:disabled:not(.sel) {
+  opacity: 0.4;
+}
+.big {
+  width: 100%;
+  height: 64px;
+  border-radius: 18px;
+  background: #1d7a31;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+}
+.big.secondary {
+  background: var(--chip);
+  color: var(--text);
+  margin-top: 12px;
+}
+.big.danger {
+  background: #fff;
+  color: #c62828;
+  border: 2px solid #f1c4c4;
+}
+.big:disabled {
+  opacity: 0.45;
+}
+.share-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1d7a31;
+}
+.share-status .dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #2fb344;
+  animation: pulse 1.2s infinite;
+}
+.tip {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.stop-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+.stop-btn {
+  min-height: 52px;
+  border-radius: 14px;
+  background: var(--chip);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 6px 8px;
+}
+.stop-btn.near {
+  background: #e8f1fd;
+  color: var(--blue);
+  box-shadow: inset 0 0 0 2px var(--blue);
+}
+.stop-btn:active,
+.pick:active,
+.big:active {
+  transform: scale(0.98);
+}
