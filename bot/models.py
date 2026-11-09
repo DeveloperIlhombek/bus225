@@ -7,8 +7,8 @@ sinflar shu faylni o'qib, tekshirilgan (validated) obyektlarga aylantiradi.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass, field, replace
+from datetime import date, datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Any
 
@@ -115,6 +115,8 @@ class Trip:
     times: tuple[OptionalTime, ...]
     # Reysni bajaradigan avtobus raqami (1, 2, 3 ...). Eski formatda bo'lmasligi mumkin.
     bus: int | None = None
+    # Qaysi jadvalga tegishli: "weekday", "sunday" ... (eski formatda — None, har kuni)
+    service: str | None = None
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any], stop_count: int) -> Trip:
@@ -141,7 +143,8 @@ class Trip:
                 f"{bus_id} reysida 'bus' butun son bo'lishi kerak: {raw_bus!r}"
             ) from exc
 
-        trip = cls(bus_id=bus_id, times=times, bus=bus)
+        service = raw.get("service")
+        trip = cls(bus_id=bus_id, times=times, bus=bus, service=str(service) if service else None)
         if trip.direction is None:
             raise RouteDataError(
                 f"{bus_id} reysida kamida 2 ta vaqt bo'lishi kerak — "
@@ -188,6 +191,9 @@ class TimetableRow:
 class Timetable:
     labels: tuple[str, ...]
     rows: tuple[TimetableRow, ...]
+    id: str = "weekday"
+    label: str = ""
+    days: tuple[int, ...] = (0, 1, 2, 3, 4, 5, 6)  # 0 — dushanba
 
     @classmethod
     def from_dict(cls, raw: Any) -> Timetable | None:
@@ -200,7 +206,13 @@ class Timetable:
             )
         except (KeyError, TypeError) as exc:
             raise RouteDataError(f"'timetable' tuzilishi noto'g'ri: {exc}") from exc
-        return cls(labels=labels, rows=rows)
+        return cls(
+            labels=labels,
+            rows=rows,
+            id=str(raw.get("id", "weekday")),
+            label=str(raw.get("label", "")),
+            days=tuple(int(d) for d in raw.get("days", range(7))),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,13 +223,41 @@ class Route:
     stops: tuple[Stop, ...]
     trips: tuple[Trip, ...]
     geometry: RouteGeometry | None = None
-    timetable: Timetable | None = None
+    timetables: tuple[Timetable, ...] = ()
+    holidays: frozenset[str] = frozenset()
     # Jadval qaysi vaqt mintaqasida yozilgan (Toshkent — UTC+5, yozgi vaqt yo'q)
     utc_offset_hours: float = 5
     _tz: timezone = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_tz", timezone(timedelta(hours=self.utc_offset_hours)))
+
+    @property
+    def timetable(self) -> Timetable | None:
+        """Asosiy (birinchi) jadval."""
+        return self.timetables[0] if self.timetables else None
+
+    def service_for(self, day: date) -> str | None:
+        """Shu kuni qaysi jadval ishlaydi (bayramda — yakshanbaniki)."""
+        if not self.timetables:
+            return None
+        weekday = 6 if day.isoformat() in self.holidays else day.weekday()
+        for table in self.timetables:
+            if weekday in table.days:
+                return table.id
+        return self.timetables[0].id
+
+    def timetable_for(self, day: date) -> Timetable | None:
+        service = self.service_for(day)
+        return next((t for t in self.timetables if t.id == service), self.timetable)
+
+    def for_day(self, day: date) -> Route:
+        """Faqat shu kuni ishlaydigan reyslar bilan yo'nalish nusxasi."""
+        service = self.service_for(day)
+        if service is None:
+            return self
+        trips = tuple(t for t in self.trips if t.service in (None, service))
+        return replace(self, trips=trips)
 
     def now(self) -> datetime:
         """Shahar vaqti — server qaysi mamlakatda bo'lishidan qat'i nazar."""
@@ -255,7 +295,15 @@ class Route:
             stops=stops,
             trips=trips,
             geometry=geometry,
-            timetable=Timetable.from_dict(raw.get("timetable")),
+            timetables=tuple(
+                t
+                for t in (
+                    Timetable.from_dict(item)
+                    for item in (raw.get("timetables") or [raw.get("timetable")])
+                )
+                if t is not None
+            ),
+            holidays=frozenset(str(d) for d in raw.get("holidays", [])),
             utc_offset_hours=float(raw.get("timezone_offset_hours", 5)),
         )
 

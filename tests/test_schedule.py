@@ -112,14 +112,16 @@ class TestUpcomingDepartures:
         from bot.services import upcoming_departures
 
         siyob = real_route.stop_count - 1
-        result = upcoming_departures(real_route, siyob, datetime(2026, 9, 5, 6, 0), limit=20)
+        weekday = real_route.for_day(datetime(2026, 9, 5).date())
+        result = upcoming_departures(weekday, siyob, datetime(2026, 9, 5, 6, 0), limit=20)
         assert result[Direction.TO_CITY] == []  # shaharga reyslar Siyobda tugaydi
         assert [d.time for d in result[Direction.TO_VILLAGE]][:2] == ["07:10", "08:10"]
 
     def test_bus_numbers_are_attached(self, real_route: Route) -> None:
         from bot.services import upcoming_departures
 
-        result = upcoming_departures(real_route, 0, datetime(2026, 9, 5, 6, 30), limit=3)
+        weekday = real_route.for_day(datetime(2026, 9, 5).date())
+        result = upcoming_departures(weekday, 0, datetime(2026, 9, 5, 6, 30), limit=3)
         assert [(d.time, d.trip.bus) for d in result[Direction.TO_CITY]] == [
             ("06:40", 2),
             ("07:20", 3),

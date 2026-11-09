@@ -184,6 +184,90 @@ class Round:
     down: dict[int, float] | None = field(default=None)
 
 
+def time_coordinates(stops: list[dict[str, Any]], s: list[float], speed: float) -> list[float]:
+    """Har bir bekatning "vaqt koordinatasi" — qishloqdan necha daqiqada yetiladi.
+
+    Bekatda `minutes` berilgan bo'lsa (guruhdagi haqiqiy o'tish vaqtlaridan), u
+    ishlatiladi; berilmaganlar qo'shni ma'lum bekatlar orasida masofaga
+    mutanosib, chetlarda esa o'rtacha tezlik bo'yicha hisoblanadi.
+    """
+    n = len(stops)
+    known = {i: float(st["minutes"]) for i, st in enumerate(stops) if st.get("minutes") is not None}
+    known.setdefault(0, 0.0)
+    keys = sorted(known)
+    for a, b in pairwise(keys):
+        if known[b] <= known[a]:
+            raise BuildError(f"'minutes' o'smayapti: {stops[a]['name']} → {stops[b]['name']}")
+    t = [0.0] * n
+    for i in range(n):
+        left = max((k for k in keys if k <= i), default=None)
+        right = min((k for k in keys if k >= i), default=None)
+        if left is not None and right is not None and right != left:
+            ratio = (s[i] - s[left]) / ((s[right] - s[left]) or 1.0)
+            t[i] = known[left] + (known[right] - known[left]) * ratio
+        elif left is not None:
+            t[i] = known[left] + (s[i] - s[left]) / speed
+        else:
+            assert right is not None
+            t[i] = known[right] - (s[right] - s[i]) / speed
+    return t
+
+
+def build_service(
+    service: dict[str, Any], index: dict[str, int], clock: list[float], up: list[int],
+    down: list[int],
+) -> list[dict[str, Any]]:
+    """Bitta jadval (masalan, ish kunlari) → bir tomonlama reyslar."""
+    buses = int(service.get("buses", 1))
+    columns, rows = service["columns"], service["rows"]
+    for col in columns:
+        if col["stop"] not in index:
+            raise BuildError(f"Jadval ustunidagi bekat topilmadi: {col['stop']}")
+        if col["direction"] not in (TO_CITY, TO_VILLAGE):
+            raise BuildError(f"Yo'nalish noto'g'ri: {col['direction']}")
+
+    rounds: list[Round] = []
+    for k, row in enumerate(rows):
+        if len(row) != len(columns):
+            raise BuildError(f"{k + 1}-qatorda {len(row)} ta katak, {len(columns)} ta kerak.")
+        anchors: dict[str, dict[int, float]] = {TO_CITY: {}, TO_VILLAGE: {}}
+        for col, cell in zip(columns, row, strict=True):
+            minute, _note = parse_cell(cell)
+            if minute is not None:
+                anchors[col["direction"]][index[col["stop"]]] = minute
+        rounds.append(Round(row=k + 1, bus=k % buses + 1, anchors=anchors))
+
+    # Vaqt koordinatasi bo'yicha: "masofa" — daqiqa, "tezlik" — 1 daqiqa/daqiqa
+    for r in rounds:
+        to_city, to_village = r.anchors[TO_CITY], r.anchors[TO_VILLAGE]
+        r.up = fill_leg(up, clock, to_city, 1.0) if to_city else None
+        r.down = fill_leg(down, clock, to_village, 1.0) if to_village else None
+        if r.up and r.down:
+            # Shaharga yetib kelish qaytishdagi jo'nashdan kech bo'lmasin
+            squeeze_tail(r.up, up, set(to_city), r.down[down[0]] - 1)
+
+    # Avtobus keyingi aylanma reysiga ulgursin
+    for i, r in enumerate(rounds):
+        nxt = next((q for q in rounds[i + 1 :] if q.bus == r.bus), None)
+        if nxt and r.down and nxt.up:
+            squeeze_tail(r.down, down, set(r.anchors[TO_VILLAGE]), nxt.up[up[0]] - 1)
+
+    prefix = "" if service["id"] == "weekday" else service["id"][0].upper()
+    trips = []
+    for r in rounds:
+        for suffix, times in (("S", r.up), ("Q", r.down)):
+            if times:
+                trips.append(
+                    {
+                        "bus_id": f"{prefix}{r.row:02d}{suffix}",
+                        "bus": r.bus,
+                        "service": service["id"],
+                        "times": [fmt(times[i]) for i in range(len(up))],
+                    }
+                )
+    return trips
+
+
 # --------------------------------------------------------------------------- asosiy
 def build(source: dict[str, Any]) -> dict[str, Any]:
     stops = source["stops"]
@@ -213,57 +297,35 @@ def build(source: dict[str, Any]) -> dict[str, Any]:
             )
 
     speed = float(source.get("speed_kmh", 40)) * 1000 / 60  # m/daqiqa
-    buses = int(source.get("buses", 1))
-    columns = source["timetable"]["columns"]
-    rows = source["timetable"]["rows"]
-    for col in columns:
-        if col["stop"] not in index:
-            raise BuildError(f"Jadval ustunidagi bekat topilmadi: {col['stop']}")
-        if col["direction"] not in (TO_CITY, TO_VILLAGE):
-            raise BuildError(f"Yo'nalish noto'g'ri: {col['direction']}")
-
+    clock = time_coordinates(stops, s, speed)
     up = list(range(n))  # qishloqdan shaharga
     down = list(reversed(up))  # shahardan qishloqqa
 
-    rounds: list[Round] = []
-    table_rows = []
-    for k, row in enumerate(rows):
-        if len(row) != len(columns):
-            raise BuildError(f"{k + 1}-qatorda {len(row)} ta katak, {len(columns)} ta kerak.")
-        anchors: dict[str, dict[int, float]] = {TO_CITY: {}, TO_VILLAGE: {}}
-        for col, cell in zip(columns, row, strict=True):
-            minute, _note = parse_cell(cell)
-            if minute is not None:
-                anchors[col["direction"]][index[col["stop"]]] = minute
-        rounds.append(Round(row=k + 1, bus=k % buses + 1, anchors=anchors))
-        table_rows.append({"bus": k % buses + 1, "cells": row})
-
-    # Har bir aylanma reysni hisoblaymiz
-    for r in rounds:
-        to_city, to_village = r.anchors[TO_CITY], r.anchors[TO_VILLAGE]
-        r.up = fill_leg(up, s, to_city, speed) if to_city else None
-        r.down = fill_leg(down, s, to_village, speed) if to_village else None
-        if r.up and r.down:
-            # Shaharga yetib kelish qaytishdagi jo'nashdan kech bo'lmasin
-            squeeze_tail(r.up, up, set(to_city), r.down[down[0]] - 1)
-
-    # Avtobus keyingi aylanma reysiga ulgursin
-    for i, r in enumerate(rounds):
-        nxt = next((q for q in rounds[i + 1 :] if q.bus == r.bus), None)
-        if nxt and r.down and nxt.up:
-            squeeze_tail(r.down, down, set(r.anchors[TO_VILLAGE]), nxt.up[up[0]] - 1)
-
-    trips = []
-    for r in rounds:
-        for suffix, times in (("S", r.up), ("Q", r.down)):
-            if times:
-                trips.append(
-                    {
-                        "bus_id": f"{r.row:02d}{suffix}",
-                        "bus": r.bus,
-                        "times": [fmt(times[i]) for i in range(n)],
-                    }
-                )
+    services = source.get("services") or [
+        {"id": "weekday", "label": "Har kuni", "days": list(range(7)), **source["timetable"],
+         "buses": source.get("buses", 1)}
+    ]
+    trips: list[dict[str, Any]] = []
+    timetables = []
+    for service in services:
+        trips += build_service(service, index, clock, up, down)
+        timetables.append(
+            {
+                "id": service["id"],
+                "label": service["label"],
+                "days": service["days"],
+                "buses": int(service.get("buses", 1)),
+                "columns": [
+                    {"stop": index[c["stop"]], "direction": c["direction"], "label": c["label"]}
+                    for c in service["columns"]
+                ],
+                "rows": [
+                    {"bus": k % int(service.get("buses", 1)) + 1, "cells": row}
+                    for k, row in enumerate(service["rows"])
+                ],
+            }
+        )
+    buses = max(t["buses"] for t in timetables)
 
     return {
         "_izoh": "AVTOMATIK YARATILGAN — qo'lda tahrirlamang. Manba: data/timetable.json, "
@@ -276,14 +338,9 @@ def build(source: dict[str, Any]) -> dict[str, Any]:
         "stops": [
             {"id": st["id"], "name": st["name"], "lat": st["lat"], "lng": st["lng"]} for st in stops
         ],
+        "holidays": source.get("holidays", []),
         "trips": trips,
-        "timetable": {
-            "columns": [
-                {"stop": index[c["stop"]], "direction": c["direction"], "label": c["label"]}
-                for c in columns
-            ],
-            "rows": table_rows,
-        },
+        "timetables": timetables,
         "geometry": {"legs": split_legs(path, projections)},
     }
 
