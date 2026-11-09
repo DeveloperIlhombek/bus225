@@ -1,0 +1,23 @@
+# /etc/systemd/system/bus225-bot.service
+[Unit]
+Description=Bus 225 — Telegram bot va jonli joylashuv API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bus225
+WorkingDirectory=/opt/bus225
+EnvironmentFile=/opt/bus225/.env
+ExecStart=/opt/bus225/.venv/bin/python -m bot
+Restart=always
+RestartSec=5
+# Xavfsizlik
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/bus225/data
+
+[Install]
+WantedBy=multi-user.target

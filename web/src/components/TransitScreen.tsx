@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FocusRequest, MapBus } from "@/components/TransitMap";
 import { BusSheet, HomeSheet, SearchSheet, StopSheet, TimetableSheet, type View } from "@/components/sheets";
 import { useCityClock } from "@/hooks/useCityClock";
+import { useLive } from "@/hooks/useLive";
 import { useLocate } from "@/hooks/useLocate";
 import { useRoute } from "@/hooks/useRoute";
 import { useTelegram } from "@/hooks/useTelegram";
@@ -69,23 +70,37 @@ export function TransitScreen() {
   const fleet = useMemo(() => (today && now ? fleetState(today, now) : []), [today, now]);
   const stopDistances = useMemo(() => (route ? cumulativeStopDistances(route) : []), [route]);
 
+  const live = useLive();
+  // Eskirgan jonli ma'lumotni useLive o'zi tashlaydi — avtobus yana jadval bo'yicha ko'rinadi
+  const liveOf = useCallback((bus: string) => live.get(bus) ?? null, [live]);
+
   const mapBuses: MapBus[] = useMemo(() => {
     if (!route) return [];
     const selectedBus = view.name === "bus" ? view.id : null;
     return fleet.flatMap((bus) => {
-      const pose = positionToPose(route, bus.position, bus.direction === "shaharga");
+      const scheduled = positionToPose(route, bus.position, bus.direction === "shaharga");
+      const real = liveOf(bus.bus);
+      const pose = real
+        ? { lat: real.lat, lng: real.lng, heading: real.heading ?? scheduled?.heading ?? 0 }
+        : scheduled;
       if (!pose) return [];
       return [
         {
           id: bus.bus,
           label: route.route_id,
           pose,
+          live: real !== null,
           selected: bus.bus === selectedBus,
           dimmed: selectedBus !== null && bus.bus !== selectedBus,
         },
       ];
     });
-  }, [route, fleet, view]);
+  }, [route, fleet, view, liveOf]);
+
+  const liveBuses = useMemo(
+    () => new Set(fleet.map((b) => b.bus).filter((b) => liveOf(b) !== null)),
+    [fleet, liveOf],
+  );
 
   // ---------------------------------------------------------------- navigatsiya
   const focusOn = useCallback((points: readonly GeoPoint[], maxZoom: number) => {
@@ -159,7 +174,7 @@ export function TransitScreen() {
     );
   }
 
-  const sheetProps = today && now ? { route: today, now, fleet, open, back } : null;
+  const sheetProps = today && now ? { route: today, now, fleet, open, back, liveBuses } : null;
 
   return (
     <main className="screen">
@@ -209,7 +224,9 @@ export function TransitScreen() {
             </svg>
           </button>
         </div>
-        <span className="live">{now ? `Jadval · ${formatClock(now)}` : "Yuklanmoqda…"}</span>
+        <span className={liveBuses.size ? "live real" : "live"}>
+          {now ? `${liveBuses.size ? "Jonli" : "Jadval"} · ${formatClock(now)}` : "Yuklanmoqda…"}
+        </span>
       </header>
 
       {canGoBack || telegram ? (

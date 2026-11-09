@@ -14,11 +14,15 @@ import sys
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiohttp import web
 
+from bot.api import build_app
 from bot.config import ConfigError, Settings
 from bot.data import RouteRepository
 from bot.handlers import build_router
+from bot.live import LiveStore
 from bot.models import RouteDataError
+from bot.services.driver import DriverService
 
 logger = logging.getLogger("bot")
 
@@ -41,8 +45,20 @@ async def run(settings: Settings) -> None:
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
-    dispatcher = Dispatcher(repository=repository, settings=settings)
+    store = LiveStore(settings.live_file)
+    driver_service = DriverService(repository, store, settings, bot)
+    dispatcher = Dispatcher(
+        repository=repository, settings=settings, driver_service=driver_service
+    )
     dispatcher.include_router(build_router())
+
+    # Jonli joylashuv API'si — bot bilan bitta jarayonda (nginx orqasida)
+    runner = web.AppRunner(build_app(driver_service))
+    await runner.setup()
+    await web.TCPSite(runner, settings.api_host, settings.api_port).start()
+    logger.info("API: http://%s:%d/api/live", settings.api_host, settings.api_port)
+    if not settings.drivers:
+        logger.warning("DRIVERS bo'sh — hech kim jonli joylashuv yubora olmaydi.")
 
     if settings.webapp_url is None:
         logger.warning("WEBAPP_URL o'rnatilmagan — 🗺 Jonli xarita tugmasi ko'rsatilmaydi.")
@@ -54,6 +70,7 @@ async def run(settings: Settings) -> None:
     try:
         await dispatcher.start_polling(bot)
     finally:
+        await runner.cleanup()
         await bot.session.close()
 
 

@@ -27,6 +27,8 @@ async def cmd_start(
         parse_mode="HTML",
         reply_markup=stops_keyboard(route, settings.webapp_url),
     )
+    if message.from_user and settings.is_driver(message.from_user.id):
+        await message.answer("🚌 Siz haydovchisiz: /haydovchi — panel va bekat tugmalari.")
 
 
 def _timetable_text(repository: RouteRepository) -> str:
