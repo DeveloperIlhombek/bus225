@@ -66,7 +66,7 @@ class TestRouteValidation:
 
 class TestRealRouteFile:
     def test_loads(self, real_route: Route) -> None:
-        assert real_route.stop_count == 14
+        assert real_route.stop_count == 16
         assert len(real_route.trips) == 22
         assert real_route.geometry is not None
         assert len(real_route.geometry.legs) == real_route.stop_count - 1
